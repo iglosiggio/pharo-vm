@@ -392,7 +392,9 @@ Class {
 		'pendingFinalizationSignals',
 		'imageVersionNumber',
 		'desiredStackPageBytes',
-		'imageReaderWriter'
+		'imageReaderWriter',
+		'sendSiteIndex',
+		'methodHasInlineCaches'
 	],
 	#classVars : [
 		'AlternateHeaderHasPrimFlag',
@@ -430,6 +432,7 @@ Class {
 		'MaxQuickPrimitiveIndex',
 		'MethodHeaderArgCountShift',
 		'MethodHeaderFlagBitPosition',
+		'MethodHeaderInlineCachesFlag',
 		'MethodHeaderTempCountShift',
 		'PrimitiveTable',
 		'ReturnToInterpreter',
@@ -928,6 +931,7 @@ StackInterpreter class >> initializeMethodIndices [
 	"The position of the unused flag bit in the method header, not including tag bit(s).
 	 Bits 28 & 29 are free for use as flag bits."
 	MethodHeaderFlagBitPosition := 28 + tagBits.
+	MethodHeaderInlineCachesFlag := 1 << (29 + tagBits).
 ]
 
 { #category : 'initialization' }
@@ -4359,6 +4363,15 @@ StackInterpreter >> classNameOf: aClass Is: className [
 	^(className at: length) = 0
 ]
 
+{ #category : 'inline caches' }
+StackInterpreter >> clearSendSiteIndex [
+
+	self assert: methodHasInlineCaches.
+	self assert: sendSiteIndex ~= -1.
+
+	sendSiteIndex := -1
+]
+
 { #category : 'message sending' }
 StackInterpreter >> cloneOSErrorObj: errObj numSlots: numSlots [
 	"If errObj is a pointer object with at least two slots, then answer a clone
@@ -5647,9 +5660,11 @@ StackInterpreter >> extReturnTopFromBlock [
 { #category : 'send bytecodes' }
 StackInterpreter >> extSendBytecode [
 	"238		11101110	i i i i i j j j	Send Literal Selector #iiiii (+ Extend A * 32) with jjj (+ Extend B * 8) Arguments"
-	| byte |
+	| byte selectorIdx |
 	byte := self fetchByte.
-	messageSelector := self literal: (byte >> 3) + (extA << 5).
+	selectorIdx := (byte >> 3) + (extA << 5).
+	messageSelector := self literal: selectorIdx.
+	self fetchSendSiteIndexIfPossible: selectorIdx.
 	extA := 0.
 	argumentCount := (byte bitAnd: 7) + (extB << 3).
 	extB := 0.
@@ -5663,9 +5678,11 @@ StackInterpreter >> extSendSuperBytecode [
 		ExtendB < 64
 			ifTrue: [Send To Superclass Literal Selector #iiiii (+ Extend A * 32) with jjj (+ Extend B * 8) Arguments]
 			ifFalse: [Send To Superclass of Stacked Class Literal Selector #iiiii (+ Extend A * 32) with jjj (+ (Extend B bitAnd: 63) * 8) Arguments]"
-	| byte |
+	| byte selectorIdx |
 	byte := self fetchByte.
-	messageSelector := self literal: (byte >> 3) + (extA << 5).
+	selectorIdx := (byte >> 3) + (extA << 5).
+	messageSelector := self literal: selectorIdx.
+	self fetchSendSiteIndexIfPossible: selectorIdx.
 	extA := 0.
 	BytecodeSetHasDirectedSuperSend ifTrue:
 		[extB >= 64 ifTrue:
@@ -5851,6 +5868,13 @@ StackInterpreter >> fetchPointer: offset ofMarriedContext: aContext [
 	^(offset - ReceiverIndex between: 1 and: (self stackPointerIndexForFrame: spouseFP))
 		ifTrue: [self temporary: offset - (ReceiverIndex + 1) in: spouseFP]
 		ifFalse: [objectMemory nilObject]
+]
+
+{ #category : 'inline caches' }
+StackInterpreter >> fetchSendSiteIndexIfPossible: selectorIdx [
+
+	methodHasInlineCaches ifTrue: [
+		sendSiteIndex := self literal: selectorIdx + 1 ]
 ]
 
 { #category : 'internal interpreter access' }
@@ -6047,27 +6071,34 @@ StackInterpreter >> findNewMethodInClassTag: classTagArg ifFound: aBlock [
 	<inline: true>
 	| classTag |
 	classTag := classTagArg.
-	(self inlineLookupInMethodCacheSel: messageSelector classTag: classTag)
-		ifFalse: [
-			"Entry was not found in the cache; perhaps something was forwarded.
-			Resolve forwarders and retry"
-			((objectMemory isOopForwarded: messageSelector) or: [
-				 objectMemory isForwardedClassTag: classTag ]) ifTrue: [
-				(objectMemory isOopForwarded: messageSelector) ifTrue: [
-					messageSelector := self handleForwardedSelectorFaultFor:
-						                   messageSelector ].
-				(objectMemory isForwardedClassTag: classTag) ifTrue: [
-					classTag := self handleForwardedSendFaultForTag: classTag ].
-				(self lookupInMethodCacheSel: messageSelector classTag: classTag)
-					ifTrue: [ ^ aBlock value ] ].
 
-			"Entry was not found in the cache; look it up the hard way "
+	(self tryToUseInlineCacheFor: classTag) ifTrue: [
+		^ aBlock value ].
+
+	"Entry was not found in the local IC cache; perhaps something was forwarded.
+	Resolve forwarders and retry"
+	(objectMemory isOopForwarded: messageSelector) ifTrue: [
+		messageSelector := self handleForwardedSelectorFaultFor: messageSelector ].
+	(objectMemory isForwardedClassTag: classTag) ifTrue: [
+		classTag := self handleForwardedSendFaultForTag: classTag ].
+
+	"Retry the inline cache"
+	(self tryToUseInlineCacheFor: classTag) ifTrue: [
+		^ aBlock value ].
+
+	"Inline cache failed, try the global lookup cache"
+	(self inlineLookupInMethodCacheSel: messageSelector classTag: classTag)
+		ifTrue: [
+			 self updateInlineCacheIfPossible: classTag.
+			^ aBlock value ]
+		ifFalse: [
+			"All caches failed. Do a proper lookup"
 			lkupClass := objectMemory classForClassTag: classTag.
 			(objectMemory isOopForwarded: lkupClass) ifTrue: [
 				lkupClass := objectMemory followForwarded: lkupClass ].
 			self lookupMethodInClass: lkupClass.
-			self addNewMethodToCache: lkupClass ]
-		ifTrue: [ aBlock value ]
+			self addNewMethodToCache: lkupClass.
+			self updateInlineCacheIfPossible: classTag ]
 ]
 
 { #category : 'message sending' }
@@ -7676,6 +7707,7 @@ StackInterpreter >> initializeInterpreter: bytesToShift [
 	profileSemaphore := profileProcess := profileMethod := objectMemory nilObject.
 	self initializeGlobalSessionID.
 	metaAccessorDepth := -2.
+	sendSiteIndex := -1.
 
 ]
 
@@ -7745,6 +7777,11 @@ StackInterpreter >> inlineLookupInMethodCacheSel: selector classTag: classTag [
 			^true	"found entry in cache; done"].
 
 	^false
+]
+
+{ #category : 'inline caches' }
+StackInterpreter >> inlinedAttempts [
+	^ 3
 ]
 
 { #category : 'frame access' }
@@ -8648,6 +8685,12 @@ StackInterpreter >> literal: offset ofMethod: methodPointer put: oop [
 	<inline: true>
 	objectMemory storePointer: offset + LiteralStart ofObject: methodPointer withValue: oop
 
+]
+
+{ #category : 'compiled methods' }
+StackInterpreter >> literal: offset put: oop [
+	self assert: method = (self iframeMethod: framePointer).
+	^self literal: offset ofMethod: method put: oop
 ]
 
 { #category : 'compiled methods' }
@@ -10140,6 +10183,12 @@ StackInterpreter >> methodDictLinearSearchLimit: anInteger [
 	methodDictLinearSearchLimit := anInteger
 ]
 
+{ #category : 'inline caches' }
+StackInterpreter >> methodHasInlineCaches: methodObj [
+
+	^ (objectMemory methodHeaderOf: methodObj) anyMask: MethodHeaderInlineCachesFlag
+]
+
 { #category : 'compiled methods' }
 StackInterpreter >> methodHeaderHasPrimitive: methodHeader [
 
@@ -10338,6 +10387,11 @@ StackInterpreter >> nameOfClass: classOop [
 		objectMemory isBytes: maybeNameOop]) ifFalse:
 		[^'bad class'].
 	^objectMemory firstIndexableField: maybeNameOop
+]
+
+{ #category : 'inline caches' }
+StackInterpreter >> nativePointersPerSendSite [
+	^ self inlinedAttempts + 1 "fallback"
 ]
 
 { #category : 'image save/restore' }
@@ -13591,8 +13645,10 @@ StackInterpreter >> sendCannotReturn: resultOop [
 { #category : 'send bytecodes' }
 StackInterpreter >> sendLiteralSelector0ArgsBytecode [
 	"Can use any of the first 16 literals for the selector."
-	| rcvr |
-	messageSelector := self literal: (currentBytecode bitAnd: 16rF).
+	| rcvr selectorIdx |
+	selectorIdx := currentBytecode bitAnd: 16rF.
+	messageSelector := self literal: selectorIdx.
+	self fetchSendSiteIndexIfPossible: selectorIdx.
 	argumentCount := 0.
 	rcvr := self stackValue: 0.
 	lkupClassTag := objectMemory fetchClassTagOf: rcvr.
@@ -13603,8 +13659,10 @@ StackInterpreter >> sendLiteralSelector0ArgsBytecode [
 { #category : 'send bytecodes' }
 StackInterpreter >> sendLiteralSelector1ArgBytecode [
 	"Can use any of the first 16 literals for the selector."
-	| rcvr |
-	messageSelector := self literal: (currentBytecode bitAnd: 16rF).
+	| rcvr selectorIdx |
+	selectorIdx := currentBytecode bitAnd: 16rF.
+	messageSelector := self literal: selectorIdx.
+	self fetchSendSiteIndexIfPossible: selectorIdx.
 	argumentCount := 1.
 	rcvr := self stackValue: 1.
 	lkupClassTag := objectMemory fetchClassTagOf: rcvr.
@@ -13615,13 +13673,24 @@ StackInterpreter >> sendLiteralSelector1ArgBytecode [
 { #category : 'send bytecodes' }
 StackInterpreter >> sendLiteralSelector2ArgsBytecode [
 	"Can use any of the first 16 literals for the selector."
-	| rcvr |
-	messageSelector := self literal: (currentBytecode bitAnd: 16rF).
+	| rcvr selectorIdx |
+	selectorIdx := currentBytecode bitAnd: 16rF.
+	messageSelector := self literal: selectorIdx.
+	self fetchSendSiteIndexIfPossible: selectorIdx.
 	argumentCount := 2.
 	rcvr := self stackValue: 2.
 	lkupClassTag := objectMemory fetchClassTagOf: rcvr.
 	self assert: lkupClassTag ~= objectMemory nilObject.
 	self commonSendOrdinary
+]
+
+{ #category : 'inline caches' }
+StackInterpreter >> sendSiteCacheSize [
+	^ self inlinedAttempts * ( " for each attempt..."
+			1 + "cached class"
+			1 "cached method"
+		) +
+		1 "cached fallback"
 ]
 
 { #category : 'debug support' }
@@ -13778,6 +13847,7 @@ StackInterpreter >> setMethod: aMethodObj [
 
 	<inline: true>
 	method := aMethodObj.
+	methodHasInlineCaches := self methodHasInlineCaches: aMethodObj.
 	self assert: (objectMemory isOopCompiledMethod: method)
 ]
 
@@ -14542,6 +14612,33 @@ StackInterpreter >> sizeOfSTArrayFromCPrimitive: cPtr [
 		^0].
 	^objectMemory lengthOf: oop
 
+]
+
+{ #category : 'inline caches' }
+StackInterpreter >> slotAtSendSite: aSendSiteIndex [ 
+	^ 1 + "initial slot"
+		1 + "skip header"
+		1 + "skip compiled code"
+		((aSendSiteIndex - 1) * self sendSiteCacheSize) "skip each previous send site"
+]
+
+{ #category : 'inline caches' }
+StackInterpreter >> slotForClassAtSendSite: aSendSiteIndex forOption: anOptionIdx [
+	^ (self slotAtSendSite: aSendSiteIndex) + ((
+			1 + "class to check"
+			1 "method to call"
+		) * (anOptionIdx - 1)) "the previous options"
+]
+
+{ #category : 'inline caches' }
+StackInterpreter >> slotForFallbackDataAtSendSite: aSendSiteIndex [
+	^ (self slotAtSendSite: aSendSiteIndex + 1) - 1 "One slot before the next SendSite"
+]
+
+{ #category : 'inline caches' }
+StackInterpreter >> slotForMethodAtSendSite: aSendSiteIndex forOption: anOptionIdx [
+	^ (self slotForClassAtSendSite: aSendSiteIndex forOption: anOptionIdx) +
+		1 "the method for this option"
 ]
 
 { #category : 'primitive support' }
@@ -15708,6 +15805,32 @@ StackInterpreter >> tryLoadNewPlugin: pluginString pluginEntries: pluginEntries 
 	^ pluginString asString -> plugin
 ]
 
+{ #category : 'inline caches' }
+StackInterpreter >> tryToUseInlineCacheFor: classTag [
+	| inlineCaches classTagObject |
+
+	sendSiteIndex = -1 ifTrue: [ ^ false ].
+
+	self assert: methodHasInlineCaches.
+
+	inlineCaches := self literal: 2. "self fetchInlineCaches"
+	classTagObject := objectMemory integerObjectOf: classTag.
+	1 to: self inlinedAttempts do: [ :optionIndex |
+		| classSlot cachedClassTag |
+		classSlot := self slotForClassAtSendSite: sendSiteIndex forOption: optionIndex.
+		cachedClassTag := objectMemory fetchPointer: classSlot - 1 ofMaybeForwardedObject: inlineCaches.
+		cachedClassTag = classTagObject ifTrue: [
+			| methodSlot cachedMethod |
+			methodSlot := self slotForMethodAtSendSite: sendSiteIndex forOption: optionIndex.
+			cachedMethod := objectMemory fetchPointer: methodSlot - 1 ofMaybeForwardedObject: inlineCaches.
+			"TODO: Load primitiveFunctionPointer"
+			"newMethod := cachedMethod.
+			self clearSendSiteIndex.
+			^ true" ] ].
+
+	^ false
+]
+
 { #category : 'debug printing' }
 StackInterpreter >> ultimateLiteralOf: aMethodOop [
 	<api>
@@ -16024,6 +16147,41 @@ StackInterpreter >> unknownInlinePrimitive [
 StackInterpreter >> unknownShortOrCodeSizeInKs [
 	"preserve whatever this value was (for images run on Cog)"
 	^theUnknownShort
+]
+
+{ #category : 'inline caches' }
+StackInterpreter >> updateInlineCacheIfPossible: classTag [
+	| classTagObj inlineCaches |
+	"If there's no cache then return"
+	sendSiteIndex = -1 ifTrue: [ ^ self ].
+
+	self assert: methodHasInlineCaches.
+
+	"Don't cache doesNotUnderstand:"
+	messageSelector = (objectMemory splObj: SelectorDoesNotUnderstand) ifTrue: [
+		^ self clearSendSiteIndex ].
+	"Don't cache cannotInterpret:"
+	messageSelector = (objectMemory splObj: SelectorCannotInterpret) ifTrue: [
+		^ self clearSendSiteIndex ].
+	"Don't cache external methods (we need a mechanism for quickening of external methods)"
+	primitiveFunctionPointer = #primitiveExternalCall ifTrue: [
+		^ self clearSendSiteIndex ].
+
+	classTagObj := objectMemory integerObjectOf: classTag.
+
+	"... otherwise lets update the IC"
+	inlineCaches := self literal: 2. "self fetchInlineCaches"
+	1 to: self inlinedAttempts do: [ :optionIndex |
+		| cachedClassSlot cachedClass cachedMethodSlot |
+		cachedClassSlot := self slotForClassAtSendSite: sendSiteIndex forOption: optionIndex.
+		cachedClass := objectMemory fetchPointer: cachedClassSlot - 1 ofMaybeForwardedObject: inlineCaches.
+		cachedClass = objectMemory nilObject ifTrue: [
+			cachedMethodSlot := self slotForMethodAtSendSite: sendSiteIndex forOption: optionIndex.
+			self literal: cachedClassSlot put: classTagObj.
+			self literal: cachedMethodSlot put: newMethod ] ].
+
+	"... and now there's no inline cache to work with"
+	self clearSendSiteIndex
 ]
 
 { #category : 'image save/restore' }
