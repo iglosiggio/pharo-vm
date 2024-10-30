@@ -7781,6 +7781,7 @@ StackInterpreter >> inlineLookupInMethodCacheSel: selector classTag: classTag [
 
 { #category : 'inline caches' }
 StackInterpreter >> inlinedAttempts [
+	"Copied from CompiledCodeInlineCache class>>#inlinedAttempts"
 	^ 3
 ]
 
@@ -10391,6 +10392,7 @@ StackInterpreter >> nameOfClass: classOop [
 
 { #category : 'inline caches' }
 StackInterpreter >> nativePointersPerSendSite [
+	"Copied from CompiledCodeInlineCache class>>#nativePointersPerSendSite"
 	^ self inlinedAttempts + 1 "fallback"
 ]
 
@@ -13686,6 +13688,7 @@ StackInterpreter >> sendLiteralSelector2ArgsBytecode [
 
 { #category : 'inline caches' }
 StackInterpreter >> sendSiteCacheSize [
+	"Copied from CompiledCodeInlineCache class>>#sendSiteCacheSize"
 	^ self inlinedAttempts * ( " for each attempt..."
 			1 + "cached class"
 			1 "cached method"
@@ -14616,6 +14619,7 @@ StackInterpreter >> sizeOfSTArrayFromCPrimitive: cPtr [
 
 { #category : 'inline caches' }
 StackInterpreter >> slotAtSendSite: aSendSiteIndex [ 
+	"Copied from CompiledCodeInlineCache class>>#slotAtSendSite:"
 	^ 1 + "initial slot"
 		1 + "skip header"
 		1 + "skip compiled code"
@@ -14624,6 +14628,7 @@ StackInterpreter >> slotAtSendSite: aSendSiteIndex [
 
 { #category : 'inline caches' }
 StackInterpreter >> slotForClassAtSendSite: aSendSiteIndex forOption: anOptionIdx [
+	"Copied from CompiledCodeInlineCache class>>#slotForClassAtSendSite:forOption:"
 	^ (self slotAtSendSite: aSendSiteIndex) + ((
 			1 + "class to check"
 			1 "method to call"
@@ -14632,11 +14637,13 @@ StackInterpreter >> slotForClassAtSendSite: aSendSiteIndex forOption: anOptionId
 
 { #category : 'inline caches' }
 StackInterpreter >> slotForFallbackDataAtSendSite: aSendSiteIndex [
+	"Copied from CompiledCodeInlineCache class>>#slotForFallbackDataAtSendSite:"
 	^ (self slotAtSendSite: aSendSiteIndex + 1) - 1 "One slot before the next SendSite"
 ]
 
 { #category : 'inline caches' }
 StackInterpreter >> slotForMethodAtSendSite: aSendSiteIndex forOption: anOptionIdx [
+	"Copied from CompiledCodeInlineCache class>>#slotForMethodAtSendSite:forOption:"
 	^ (self slotForClassAtSendSite: aSendSiteIndex forOption: anOptionIdx) +
 		1 "the method for this option"
 ]
