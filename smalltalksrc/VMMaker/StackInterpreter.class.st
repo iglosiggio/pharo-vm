@@ -7708,6 +7708,7 @@ StackInterpreter >> initializeInterpreter: bytesToShift [
 	self initializeGlobalSessionID.
 	metaAccessorDepth := -2.
 	sendSiteIndex := -1.
+	methodHasInlineCaches := false.
 
 ]
 

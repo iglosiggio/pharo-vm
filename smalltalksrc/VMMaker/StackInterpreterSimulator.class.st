@@ -216,6 +216,10 @@ StackInterpreterSimulator >> basicInitialize [
 	
 	imageReaderWriter := VMImageReaderWriter newWithMemory: objectMemory andInterpreter: self.
 
+	"initialize inline caches state"
+	sendSiteIndex := -1.
+	methodHasInlineCaches := false.
+
 ]
 
 { #category : 'spur bootstrap' }
