@@ -156,6 +156,63 @@ VMLookUpTest >> testInstallSmallIntegerClassIntoClassTable [
 ]
 
 { #category : 'tests' }
+VMLookUpTest >> testLookUpAlreadyUpdatedICGoesThroughFastPath [
+
+	| receiverTagOop inlineCachesOop sendsiteIndexOop aMethodDictionary |
+	receiverClass := self setSmallIntegerClassIntoClassTable.
+	selectorOop := self
+		newClassInOldSpaceWithSlots: 0
+		instSpec: memory nonIndexablePointerFormat.
+	receiverTagOop := memory integerObjectOf: (memory classTagForClass: receiverClass).
+
+	inlineCachesOop := methodBuilder newMethod;
+		"FIXME: We should write a builder for inline caches"
+		literals: {
+			"CompiledMethod"
+			memory nilObject.
+			"SendSite 1 - Attempt 1"
+			receiverTagOop. memory trueObject.
+			"             Attempt 2"
+			memory nilObject. memory nilObject.
+			"             Attempt 3"
+			memory nilObject. memory nilObject.
+			"Fallback data"
+			selectorOop };
+		buildMethod.
+
+	sendsiteIndexOop := memory integerObjectOf: 1.
+	methodOop := methodBuilder newMethod;
+		hasInlineCaches: true;
+		literals: { inlineCachesOop. selectorOop. sendsiteIndexOop };
+		buildMethod.
+	receiver := memory integerObjectOf: 56.
+
+	self setUpMethodDictionaryIn: receiverClass.
+	aMethodDictionary := memory fetchPointer: MethodDictionaryIndex ofObject: receiverClass.
+	self installSelector: selectorOop method: methodOop inMethodDictionary: aMethodDictionary.
+
+	stackBuilder addNewFrame method: methodOop.
+	stackBuilder buildStack.
+	interpreter
+		methodDictLinearSearchLimit: 3;
+		setMethod: methodOop.
+	interpreter
+		messageSelector: selectorOop;
+		fetchSendSiteIndexIfPossible: 1;
+		findNewMethodInClassTag: memory smallIntegerTag.
+
+	"The IC was not updated"
+	self assert: (interpreter literal: 1 ofMethod: inlineCachesOop) equals: receiverTagOop.
+	self assert: (interpreter literal: 2 ofMethod: inlineCachesOop) equals: memory trueObject.
+	3 to: 6 do: [ :i |
+		self assert: (interpreter literal: i ofMethod: inlineCachesOop) equals: memory nilObject ].
+	self assert: (interpreter literal: 7 ofMethod: inlineCachesOop) equals: selectorOop.
+
+	"The new method is the expected one"
+	self assert: interpreter newMethod equals: memory trueObject.
+]
+
+{ #category : 'tests' }
 VMLookUpTest >> testLookUpFindsForwardedMethod [
 
 	| aMethodDictionary |

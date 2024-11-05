@@ -10,7 +10,8 @@ Class {
 		'bytecodes',
 		'numberOfArguments',
 		'isPrimitive',
-		'originalLiterals'
+		'originalLiterals',
+		'hasInlineCaches'
 	],
 	#pools : [
 		'VMObjectIndices'
@@ -46,11 +47,12 @@ VMCompiledCodeBuilder >> buildMethod [
 { #category : 'building' }
 VMCompiledCodeBuilder >> buildMethodHeader [
 
-	^  (numberOfArguments bitShift: 24)
+	^  (hasInlineCaches asBit bitShift: 29)
+		+ (numberOfArguments bitShift: 24)
 		+ (numberOfTemporaries bitShift: 18) 
-		+ (isSmall ifTrue: [ 0 ] ifFalse: [ 1 bitShift: 17 ])
-		+ literals size 
-		+ (isPrimitive asBit << 16)
+		+ (isSmall asBit bitShift: 17)
+		+ (isPrimitive asBit bitShift: 16)
+		+ literals size
 ]
 
 { #category : 'helper' }
@@ -116,6 +118,11 @@ VMCompiledCodeBuilder >> fillMethod [
 	self putBytecodesInMethod.
 ]
 
+{ #category : 'accessing' }
+VMCompiledCodeBuilder >> hasInlineCaches: aBoolean [ 
+	hasInlineCaches := aBoolean
+]
+
 { #category : 'initialization' }
 VMCompiledCodeBuilder >> initialize [
 	bytecodes := #[1 2 3 4 5 6 7 8 9 0].
@@ -123,6 +130,7 @@ VMCompiledCodeBuilder >> initialize [
 	originalLiterals := OrderedCollection new.
 	isSmall := true.
 	isPrimitive := false.
+	hasInlineCaches := false.
 	numberOfArguments := 0.
 	numberOfTemporaries := 0.
 	

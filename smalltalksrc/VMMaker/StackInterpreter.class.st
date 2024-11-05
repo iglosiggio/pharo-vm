@@ -5874,7 +5874,10 @@ StackInterpreter >> fetchPointer: offset ofMarriedContext: aContext [
 StackInterpreter >> fetchSendSiteIndexIfPossible: selectorIdx [
 
 	methodHasInlineCaches ifTrue: [
-		sendSiteIndex := self literal: selectorIdx + 1 ]
+		| sendSiteLiteral |
+		sendSiteLiteral := self literal: selectorIdx + 1.
+		(objectMemory isIntegerObject: sendSiteLiteral) ifTrue: [
+			sendSiteIndex := objectMemory integerValueOf: sendSiteLiteral ] ]
 ]
 
 { #category : 'internal interpreter access' }
@@ -15821,7 +15824,7 @@ StackInterpreter >> tryToUseInlineCacheFor: classTag [
 
 	self assert: methodHasInlineCaches.
 
-	inlineCaches := self literal: 2. "self fetchInlineCaches"
+	inlineCaches := self literal: 0. "self fetchInlineCaches"
 	classTagObject := objectMemory integerObjectOf: classTag.
 	1 to: self inlinedAttempts do: [ :optionIndex |
 		| classSlot cachedClassTag |
@@ -15832,9 +15835,9 @@ StackInterpreter >> tryToUseInlineCacheFor: classTag [
 			methodSlot := self slotForMethodAtSendSite: sendSiteIndex forOption: optionIndex.
 			cachedMethod := objectMemory fetchPointer: methodSlot - 1 ofMaybeForwardedObject: inlineCaches.
 			"TODO: Load primitiveFunctionPointer"
-			"newMethod := cachedMethod.
+			newMethod := cachedMethod.
 			self clearSendSiteIndex.
-			^ true" ] ].
+			^ true ] ].
 
 	^ false
 ]
@@ -16178,7 +16181,7 @@ StackInterpreter >> updateInlineCacheIfPossible: classTag [
 	classTagObj := objectMemory integerObjectOf: classTag.
 
 	"... otherwise lets update the IC"
-	inlineCaches := self literal: 2. "self fetchInlineCaches"
+	inlineCaches := self literal: 0. "self fetchInlineCaches"
 	1 to: self inlinedAttempts do: [ :optionIndex |
 		| cachedClassSlot cachedClass cachedMethodSlot |
 		cachedClassSlot := self slotForClassAtSendSite: sendSiteIndex forOption: optionIndex.
