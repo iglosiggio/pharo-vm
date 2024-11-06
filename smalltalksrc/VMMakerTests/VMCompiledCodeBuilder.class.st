@@ -50,7 +50,7 @@ VMCompiledCodeBuilder >> buildMethodHeader [
 	^  (hasInlineCaches asBit bitShift: 29)
 		+ (numberOfArguments bitShift: 24)
 		+ (numberOfTemporaries bitShift: 18) 
-		+ (isSmall asBit bitShift: 17)
+		+ (isSmall not asBit bitShift: 17)
 		+ (isPrimitive asBit bitShift: 16)
 		+ literals size
 ]
