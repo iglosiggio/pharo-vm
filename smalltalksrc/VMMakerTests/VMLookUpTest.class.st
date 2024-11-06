@@ -146,19 +146,245 @@ VMLookUpTest >> setUpClassAndMethod [
 ]
 
 { #category : 'tests' }
-VMLookUpTest >> testInstallSmallIntegerClassIntoClassTable [
-	"We set a smallInteger class into the classTable"
+VMLookUpTest >> testICLookUpCDoesNothingAfterThirdAttempt [
 
+	| receiverTagOop inlineCachesOop sendsiteIndexOop aMethodDictionary |
 	receiverClass := self setSmallIntegerClassIntoClassTable.
-	self
-		assert: (memory fetchClassOf: (memory integerObjectOf: 17))
-		equals: receiverClass
+	selectorOop := self
+		newClassInOldSpaceWithSlots: 0
+		instSpec: memory nonIndexablePointerFormat.
+	receiverTagOop := memory integerObjectOf: (memory classTagForClass: receiverClass).
+
+	inlineCachesOop := methodBuilder newMethod;
+		"FIXME: We should write a builder for inline caches"
+		literals: {
+			"CompiledMethod"
+			memory nilObject.
+			"SendSite 1 - Attempt 1"
+			memory falseObject. memory falseObject.
+			"             Attempt 2"
+			memory falseObject. memory falseObject.
+			"             Attempt 3"
+			memory falseObject. memory falseObject.
+			"Fallback data"
+			selectorOop };
+		buildMethod.
+
+	sendsiteIndexOop := memory integerObjectOf: 1.
+	methodOop := methodBuilder newMethod;
+		hasInlineCaches: true;
+		literals: { inlineCachesOop. selectorOop. sendsiteIndexOop };
+		buildMethod.
+	receiver := memory integerObjectOf: 56.
+
+	self setUpMethodDictionaryIn: receiverClass.
+	aMethodDictionary := memory fetchPointer: MethodDictionaryIndex ofObject: receiverClass.
+	self installSelector: selectorOop method: memory trueObject inMethodDictionary: aMethodDictionary.
+
+	stackBuilder addNewFrame method: methodOop.
+	stackBuilder buildStack.
+	interpreter
+		methodDictLinearSearchLimit: 3;
+		setMethod: methodOop.
+	interpreter
+		messageSelector: selectorOop;
+		fetchSendSiteIndexIfPossible: 1;
+		findNewMethodInClassTag: memory smallIntegerTag.
+
+	"The IC was updated"
+	self assert: (interpreter literal: 1 ofMethod: inlineCachesOop) equals: memory falseObject.
+	self assert: (interpreter literal: 2 ofMethod: inlineCachesOop) equals: memory falseObject.
+	self assert: (interpreter literal: 3 ofMethod: inlineCachesOop) equals: memory falseObject.
+	self assert: (interpreter literal: 4 ofMethod: inlineCachesOop) equals: memory falseObject.
+	self assert: (interpreter literal: 5 ofMethod: inlineCachesOop) equals: memory falseObject.
+	self assert: (interpreter literal: 6 ofMethod: inlineCachesOop) equals: memory falseObject.
+	self assert: (interpreter literal: 7 ofMethod: inlineCachesOop) equals: selectorOop.
+
+	"The new method is the expected one"
+	self assert: interpreter newMethod equals: memory trueObject.
 ]
 
 { #category : 'tests' }
-VMLookUpTest >> testLookUpAlreadyUpdatedICGoesThroughFastPath [
+VMLookUpTest >> testICLookUpCanUpdateFirstAttempt [
 
 	| receiverTagOop inlineCachesOop sendsiteIndexOop aMethodDictionary |
+	receiverClass := self setSmallIntegerClassIntoClassTable.
+	selectorOop := self
+		newClassInOldSpaceWithSlots: 0
+		instSpec: memory nonIndexablePointerFormat.
+	receiverTagOop := memory integerObjectOf: (memory classTagForClass: receiverClass).
+
+	inlineCachesOop := methodBuilder newMethod;
+		"FIXME: We should write a builder for inline caches"
+		literals: {
+			"CompiledMethod"
+			memory nilObject.
+			"SendSite 1 - Attempt 1"
+			memory nilObject. memory nilObject.
+			"             Attempt 2"
+			memory nilObject. memory nilObject.
+			"             Attempt 3"
+			memory nilObject. memory nilObject.
+			"Fallback data"
+			selectorOop };
+		buildMethod.
+
+	sendsiteIndexOop := memory integerObjectOf: 1.
+	methodOop := methodBuilder newMethod;
+		hasInlineCaches: true;
+		literals: { inlineCachesOop. selectorOop. sendsiteIndexOop };
+		buildMethod.
+	receiver := memory integerObjectOf: 56.
+
+	self setUpMethodDictionaryIn: receiverClass.
+	aMethodDictionary := memory fetchPointer: MethodDictionaryIndex ofObject: receiverClass.
+	self installSelector: selectorOop method: memory trueObject inMethodDictionary: aMethodDictionary.
+
+	stackBuilder addNewFrame method: methodOop.
+	stackBuilder buildStack.
+	interpreter
+		methodDictLinearSearchLimit: 3;
+		setMethod: methodOop.
+	interpreter
+		messageSelector: selectorOop;
+		fetchSendSiteIndexIfPossible: 1;
+		findNewMethodInClassTag: memory smallIntegerTag.
+
+	"The IC was updated"
+	self assert: (interpreter literal: 1 ofMethod: inlineCachesOop) equals: receiverTagOop.
+	self assert: (interpreter literal: 2 ofMethod: inlineCachesOop) equals: memory trueObject.
+	self assert: (interpreter literal: 3 ofMethod: inlineCachesOop) equals: memory nilObject.
+	self assert: (interpreter literal: 4 ofMethod: inlineCachesOop) equals: memory nilObject.
+	self assert: (interpreter literal: 5 ofMethod: inlineCachesOop) equals: memory nilObject.
+	self assert: (interpreter literal: 6 ofMethod: inlineCachesOop) equals: memory nilObject.
+	self assert: (interpreter literal: 7 ofMethod: inlineCachesOop) equals: selectorOop.
+
+	"The new method is the expected one"
+	self assert: interpreter newMethod equals: memory trueObject.
+]
+
+{ #category : 'tests' }
+VMLookUpTest >> testICLookUpCanUpdateSecondAttempt [
+
+	| receiverTagOop inlineCachesOop sendsiteIndexOop aMethodDictionary |
+	receiverClass := self setSmallIntegerClassIntoClassTable.
+	selectorOop := self
+		newClassInOldSpaceWithSlots: 0
+		instSpec: memory nonIndexablePointerFormat.
+	receiverTagOop := memory integerObjectOf: (memory classTagForClass: receiverClass).
+
+	inlineCachesOop := methodBuilder newMethod;
+		"FIXME: We should write a builder for inline caches"
+		literals: {
+			"CompiledMethod"
+			memory nilObject.
+			"SendSite 1 - Attempt 1"
+			memory falseObject. memory falseObject.
+			"             Attempt 2"
+			memory nilObject. memory nilObject.
+			"             Attempt 3"
+			memory nilObject. memory nilObject.
+			"Fallback data"
+			selectorOop };
+		buildMethod.
+
+	sendsiteIndexOop := memory integerObjectOf: 1.
+	methodOop := methodBuilder newMethod;
+		hasInlineCaches: true;
+		literals: { inlineCachesOop. selectorOop. sendsiteIndexOop };
+		buildMethod.
+	receiver := memory integerObjectOf: 56.
+
+	self setUpMethodDictionaryIn: receiverClass.
+	aMethodDictionary := memory fetchPointer: MethodDictionaryIndex ofObject: receiverClass.
+	self installSelector: selectorOop method: memory trueObject inMethodDictionary: aMethodDictionary.
+
+	stackBuilder addNewFrame method: methodOop.
+	stackBuilder buildStack.
+	interpreter
+		methodDictLinearSearchLimit: 3;
+		setMethod: methodOop.
+	interpreter
+		messageSelector: selectorOop;
+		fetchSendSiteIndexIfPossible: 1;
+		findNewMethodInClassTag: memory smallIntegerTag.
+
+	"The IC was updated"
+	self assert: (interpreter literal: 1 ofMethod: inlineCachesOop) equals: memory falseObject.
+	self assert: (interpreter literal: 2 ofMethod: inlineCachesOop) equals: memory falseObject.
+	self assert: (interpreter literal: 3 ofMethod: inlineCachesOop) equals: receiverTagOop.
+	self assert: (interpreter literal: 4 ofMethod: inlineCachesOop) equals: memory trueObject.
+	self assert: (interpreter literal: 5 ofMethod: inlineCachesOop) equals: memory nilObject.
+	self assert: (interpreter literal: 6 ofMethod: inlineCachesOop) equals: memory nilObject.
+	self assert: (interpreter literal: 7 ofMethod: inlineCachesOop) equals: selectorOop.
+
+	"The new method is the expected one"
+	self assert: interpreter newMethod equals: memory trueObject.
+]
+
+{ #category : 'tests' }
+VMLookUpTest >> testICLookUpCanUpdateThirdAttempt [
+
+	| receiverTagOop inlineCachesOop sendsiteIndexOop aMethodDictionary |
+	receiverClass := self setSmallIntegerClassIntoClassTable.
+	selectorOop := self
+		newClassInOldSpaceWithSlots: 0
+		instSpec: memory nonIndexablePointerFormat.
+	receiverTagOop := memory integerObjectOf: (memory classTagForClass: receiverClass).
+
+	inlineCachesOop := methodBuilder newMethod;
+		"FIXME: We should write a builder for inline caches"
+		literals: {
+			"CompiledMethod"
+			memory nilObject.
+			"SendSite 1 - Attempt 1"
+			memory falseObject. memory falseObject.
+			"             Attempt 2"
+			memory falseObject. memory falseObject.
+			"             Attempt 3"
+			memory nilObject. memory nilObject.
+			"Fallback data"
+			selectorOop };
+		buildMethod.
+
+	sendsiteIndexOop := memory integerObjectOf: 1.
+	methodOop := methodBuilder newMethod;
+		hasInlineCaches: true;
+		literals: { inlineCachesOop. selectorOop. sendsiteIndexOop };
+		buildMethod.
+	receiver := memory integerObjectOf: 56.
+
+	self setUpMethodDictionaryIn: receiverClass.
+	aMethodDictionary := memory fetchPointer: MethodDictionaryIndex ofObject: receiverClass.
+	self installSelector: selectorOop method: memory trueObject inMethodDictionary: aMethodDictionary.
+
+	stackBuilder addNewFrame method: methodOop.
+	stackBuilder buildStack.
+	interpreter
+		methodDictLinearSearchLimit: 3;
+		setMethod: methodOop.
+	interpreter
+		messageSelector: selectorOop;
+		fetchSendSiteIndexIfPossible: 1;
+		findNewMethodInClassTag: memory smallIntegerTag.
+
+	"The IC was updated"
+	self assert: (interpreter literal: 1 ofMethod: inlineCachesOop) equals: memory falseObject.
+	self assert: (interpreter literal: 2 ofMethod: inlineCachesOop) equals: memory falseObject.
+	self assert: (interpreter literal: 3 ofMethod: inlineCachesOop) equals: memory falseObject.
+	self assert: (interpreter literal: 4 ofMethod: inlineCachesOop) equals: memory falseObject.
+	self assert: (interpreter literal: 5 ofMethod: inlineCachesOop) equals: receiverTagOop.
+	self assert: (interpreter literal: 6 ofMethod: inlineCachesOop) equals: memory trueObject.
+	self assert: (interpreter literal: 7 ofMethod: inlineCachesOop) equals: selectorOop.
+
+	"The new method is the expected one"
+	self assert: interpreter newMethod equals: memory trueObject.
+]
+
+{ #category : 'tests' }
+VMLookUpTest >> testICLookUpUpdatedGoesThroughFastPath [
+
+	| receiverTagOop inlineCachesOop sendsiteIndexOop |
 	receiverClass := self setSmallIntegerClassIntoClassTable.
 	selectorOop := self
 		newClassInOldSpaceWithSlots: 0
@@ -187,10 +413,6 @@ VMLookUpTest >> testLookUpAlreadyUpdatedICGoesThroughFastPath [
 		buildMethod.
 	receiver := memory integerObjectOf: 56.
 
-	self setUpMethodDictionaryIn: receiverClass.
-	aMethodDictionary := memory fetchPointer: MethodDictionaryIndex ofObject: receiverClass.
-	self installSelector: selectorOop method: methodOop inMethodDictionary: aMethodDictionary.
-
 	stackBuilder addNewFrame method: methodOop.
 	stackBuilder buildStack.
 	interpreter
@@ -204,12 +426,24 @@ VMLookUpTest >> testLookUpAlreadyUpdatedICGoesThroughFastPath [
 	"The IC was not updated"
 	self assert: (interpreter literal: 1 ofMethod: inlineCachesOop) equals: receiverTagOop.
 	self assert: (interpreter literal: 2 ofMethod: inlineCachesOop) equals: memory trueObject.
-	3 to: 6 do: [ :i |
-		self assert: (interpreter literal: i ofMethod: inlineCachesOop) equals: memory nilObject ].
+	self assert: (interpreter literal: 3 ofMethod: inlineCachesOop) equals: memory nilObject.
+	self assert: (interpreter literal: 4 ofMethod: inlineCachesOop) equals: memory nilObject.
+	self assert: (interpreter literal: 5 ofMethod: inlineCachesOop) equals: memory nilObject.
+	self assert: (interpreter literal: 6 ofMethod: inlineCachesOop) equals: memory nilObject.
 	self assert: (interpreter literal: 7 ofMethod: inlineCachesOop) equals: selectorOop.
 
 	"The new method is the expected one"
 	self assert: interpreter newMethod equals: memory trueObject.
+]
+
+{ #category : 'tests' }
+VMLookUpTest >> testInstallSmallIntegerClassIntoClassTable [
+	"We set a smallInteger class into the classTable"
+
+	receiverClass := self setSmallIntegerClassIntoClassTable.
+	self
+		assert: (memory fetchClassOf: (memory integerObjectOf: 17))
+		equals: receiverClass
 ]
 
 { #category : 'tests' }

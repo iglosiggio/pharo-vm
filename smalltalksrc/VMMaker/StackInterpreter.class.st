@@ -5818,6 +5818,14 @@ StackInterpreter >> fetchFloat: fieldIndex ofObject: objectPointer [
 	^objectMemory floatValueOf: floatOop
 ]
 
+{ #category : 'inline caches' }
+StackInterpreter >> fetchInlineCaches [
+	| inlineCaches |
+	inlineCaches := self literal: 0.
+	(objectMemory isForwarded: inlineCaches) ifFalse: [ ^ inlineCaches ].
+	^ objectMemory followForwarded: inlineCaches
+]
+
 { #category : 'utilities' }
 StackInterpreter >> fetchInteger: fieldIndex ofObject: objectPointer [
 	"Note: May be called by translated primitive code."
@@ -15824,16 +15832,16 @@ StackInterpreter >> tryToUseInlineCacheFor: classTag [
 
 	self assert: methodHasInlineCaches.
 
-	inlineCaches := self literal: 0. "self fetchInlineCaches"
+	inlineCaches := self fetchInlineCaches.
 	classTagObject := objectMemory integerObjectOf: classTag.
 	1 to: self inlinedAttempts do: [ :optionIndex |
 		| classSlot cachedClassTag |
 		classSlot := self slotForClassAtSendSite: sendSiteIndex forOption: optionIndex.
-		cachedClassTag := objectMemory fetchPointer: classSlot - 1 ofMaybeForwardedObject: inlineCaches.
+		cachedClassTag := objectMemory fetchPointer: classSlot - 1 ofObject: inlineCaches.
 		cachedClassTag = classTagObject ifTrue: [
 			| methodSlot cachedMethod |
 			methodSlot := self slotForMethodAtSendSite: sendSiteIndex forOption: optionIndex.
-			cachedMethod := objectMemory fetchPointer: methodSlot - 1 ofMaybeForwardedObject: inlineCaches.
+			cachedMethod := objectMemory fetchPointer: methodSlot - 1 ofObject: inlineCaches.
 			"TODO: Load primitiveFunctionPointer"
 			newMethod := cachedMethod.
 			self clearSendSiteIndex.
@@ -16181,15 +16189,17 @@ StackInterpreter >> updateInlineCacheIfPossible: classTag [
 	classTagObj := objectMemory integerObjectOf: classTag.
 
 	"... otherwise lets update the IC"
-	inlineCaches := self literal: 0. "self fetchInlineCaches"
+	inlineCaches := self fetchInlineCaches.
 	1 to: self inlinedAttempts do: [ :optionIndex |
 		| cachedClassSlot cachedClass cachedMethodSlot |
 		cachedClassSlot := self slotForClassAtSendSite: sendSiteIndex forOption: optionIndex.
-		cachedClass := objectMemory fetchPointer: cachedClassSlot - 1 ofMaybeForwardedObject: inlineCaches.
+		cachedClass := objectMemory fetchPointer: cachedClassSlot - 1 ofObject: inlineCaches.
 		cachedClass = objectMemory nilObject ifTrue: [
 			cachedMethodSlot := self slotForMethodAtSendSite: sendSiteIndex forOption: optionIndex.
-			self literal: cachedClassSlot put: classTagObj.
-			self literal: cachedMethodSlot put: newMethod ] ].
+			objectMemory storePointer: cachedClassSlot - 1 ofObject: inlineCaches withValue: classTagObj.
+			objectMemory storePointer: cachedMethodSlot - 1 ofObject: inlineCaches withValue: newMethod.
+			self clearSendSiteIndex.
+			^ self ] ].
 
 	"... and now there's no inline cache to work with"
 	self clearSendSiteIndex
