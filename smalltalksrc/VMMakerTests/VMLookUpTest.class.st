@@ -202,6 +202,71 @@ VMLookUpTest >> testICLookUpCDoesNothingAfterThirdAttempt [
 ]
 
 { #category : 'tests' }
+VMLookUpTest >> testICLookUpCanFillAttemptsTable [
+
+	| classes classTags classTagOops inlineCachesOop |
+	selectorOop := self
+		newClassInOldSpaceWithSlots: 0
+		instSpec: memory nonIndexablePointerFormat.
+
+	classes := (1 to: interpreter inlinedAttempts) collect: [ :i |
+		self
+			newClassInOldSpaceWithSlots: 0
+			instSpec: memory nonIndexablePointerFormat ].
+
+	classTags := classes collect: [ :class | memory classTagForClass: class ].
+	classTagOops := classTags collect: [ :tag | memory integerObjectOf: tag ].
+
+	inlineCachesOop := methodBuilder newMethod;
+		"FIXME: We should write a builder for inline caches"
+		literals: {
+			"CompiledMethod"
+			memory nilObject.
+			"SendSite 1 - Attempt 1"
+			memory nilObject. memory nilObject.
+			"             Attempt 2"
+			memory nilObject. memory nilObject.
+			"             Attempt 3"
+			memory nilObject. memory nilObject.
+			"Fallback data"
+			selectorOop };
+		buildMethod.
+
+	methodOop := methodBuilder newMethod;
+		hasInlineCaches: true;
+		literals: { inlineCachesOop. selectorOop. "SendSite index" memory integerObjectOf: 1 };
+		buildMethod.
+
+	classes do: [ :class |
+		| methodDict |
+		self setUpMethodDictionaryIn: class.
+		methodDict := memory fetchPointer: MethodDictionaryIndex ofObject: class.
+		self installSelector: selectorOop method: methodOop inMethodDictionary: methodDict ].
+
+	stackBuilder addNewFrame method: methodOop.
+	stackBuilder buildStack.
+	interpreter
+		methodDictLinearSearchLimit: 3;
+		setMethod: methodOop;
+		messageSelector: selectorOop;
+		fetchSendSiteIndexIfPossible: 1;
+		findNewMethodInClassTag: (classTags at: 1);
+		fetchSendSiteIndexIfPossible: 1;
+		findNewMethodInClassTag: (classTags at: 2);
+		fetchSendSiteIndexIfPossible: 1;
+		findNewMethodInClassTag: (classTags at: 3).
+
+	"The IC was updated"
+	self assert: (interpreter literal: 1 ofMethod: inlineCachesOop) equals: (classTagOops at: 1).
+	self assert: (interpreter literal: 2 ofMethod: inlineCachesOop) equals: methodOop.
+	self assert: (interpreter literal: 3 ofMethod: inlineCachesOop) equals: (classTagOops at: 2).
+	self assert: (interpreter literal: 4 ofMethod: inlineCachesOop) equals: methodOop.
+	self assert: (interpreter literal: 5 ofMethod: inlineCachesOop) equals: (classTagOops at: 3).
+	self assert: (interpreter literal: 6 ofMethod: inlineCachesOop) equals: methodOop.
+	self assert: (interpreter literal: 7 ofMethod: inlineCachesOop) equals: selectorOop.
+]
+
+{ #category : 'tests' }
 VMLookUpTest >> testICLookUpCanUpdateFirstAttempt [
 
 	| receiverTagOop inlineCachesOop aMethodDictionary |
@@ -367,6 +432,64 @@ VMLookUpTest >> testICLookUpCanUpdateThirdAttempt [
 
 	"The new method is the expected one"
 	self assert: interpreter newMethod equals: memory trueObject.
+]
+
+{ #category : 'tests' }
+VMLookUpTest >> testICLookUpDoesNotUseICsForSendsWithoutSendsite [
+
+	| class classTag classTagOop inlineCachesOop methodDict |
+	selectorOop := self
+		newClassInOldSpaceWithSlots: 0
+		instSpec: memory nonIndexablePointerFormat.
+
+	class := self
+		newClassInOldSpaceWithSlots: 0
+		instSpec: memory nonIndexablePointerFormat.
+
+	classTag := memory classTagForClass: class.
+	classTagOop := memory integerObjectOf: classTag.
+
+	inlineCachesOop := methodBuilder newMethod;
+		"FIXME: We should write a builder for inline caches"
+		literals: {
+			"CompiledMethod"
+			memory nilObject.
+			"SendSite 1 - Attempt 1"
+			classTagOop. memory trueObject.
+			"             Attempt 2"
+			memory nilObject. memory nilObject.
+			"             Attempt 3"
+			memory nilObject. memory nilObject.
+			"Fallback data"
+			selectorOop };
+		buildMethod.
+
+	methodOop := methodBuilder newMethod;
+		hasInlineCaches: true;
+		literals: { inlineCachesOop. selectorOop. "SendSite index" memory integerObjectOf: 1 };
+		buildMethod.
+
+	self setUpMethodDictionaryIn: class.
+	methodDict := memory fetchPointer: MethodDictionaryIndex ofObject: class.
+	self installSelector: selectorOop method: methodOop inMethodDictionary: methodDict.
+
+	stackBuilder addNewFrame method: methodOop.
+	stackBuilder buildStack.
+	interpreter
+		methodDictLinearSearchLimit: 3;
+		setMethod: methodOop;
+		messageSelector: selectorOop;
+		fetchSendSiteIndexIfPossible: 1;
+		findNewMethodInClassTag: classTag.
+
+	"We did a lookup with a sendsite"
+	self assert: interpreter newMethod equals: memory trueObject.
+
+	"But subsequent lookups will not have a sendsite"
+	interpreter
+		findNewMethodInClassTag: classTag.
+
+	self assert: interpreter newMethod equals: methodOop.
 ]
 
 { #category : 'tests' }
