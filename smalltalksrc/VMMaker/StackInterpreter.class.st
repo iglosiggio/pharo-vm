@@ -1970,17 +1970,10 @@ StackInterpreter >> addNewMethodToCache: classObj [
 			If there is active contention over the first slot, the second
 				or third will likely be free for reentry after ejection.
 			Also, flushing is good when reprobe chains are getting full."
-	| probe hash primitiveIndex |
+	| probe hash |
 	<inline: false>
 	hash := objectMemory methodCacheHashOf: messageSelector with: (objectMemory classTagForClass: classObj).  "shift drops low-order zeros from addresses"
-	(objectMemory isOopCompiledMethod: newMethod)
-		ifTrue:
-			[primitiveIndex := self primitiveIndexOf: newMethod.
-			 primitiveFunctionPointer := self functionPointerFor: primitiveIndex]
-		ifFalse:
-			[self assert: ((objectMemory isNonImmediate: newMethod)
-						  and: [objectMemory isForwarded: newMethod]) not.
-			 primitiveFunctionPointer := #primitiveInvokeObjectAsMethod].
+	primitiveFunctionPointer := self primitiveFunctionPointerFor: newMethod.
 
 	0 to: CacheProbeMax-1 do:
 		[:p | probe := (hash >> p) bitAnd: MethodCacheMask.
@@ -11215,6 +11208,19 @@ StackInterpreter >> primitiveFunctionPointer [
 	^ primitiveFunctionPointer
 ]
 
+{ #category : 'method lookup cache' }
+StackInterpreter >> primitiveFunctionPointerFor: aMethod [
+	(objectMemory isOopCompiledMethod: aMethod)
+		ifTrue: [
+			| index |
+			index := self primitiveIndexOf: aMethod.
+			^ self functionPointerFor: index ]
+		ifFalse: [
+			self assert: (objectMemory isNonImmediate: aMethod).
+			self assert: (objectMemory isForwarded: aMethod) not.
+			^ #primitiveInvokeObjectAsMethod ]
+]
+
 { #category : 'compiled methods' }
 StackInterpreter >> primitiveIndexOf: methodPointer [
 	<api>
@@ -15842,15 +15848,7 @@ StackInterpreter >> tryToUseInlineCacheFor: classTag [
 			cachedMethod := objectMemory fetchPointer: methodSlot - 1 ofObject: inlineCaches.
 
 			newMethod := cachedMethod.
-			(objectMemory isOopCompiledMethod: newMethod)
-				ifTrue: [
-					| index |
-					index := self primitiveIndexOf: newMethod.
-					primitiveFunctionPointer := self functionPointerFor: index ]
-				ifFalse: [
-					self assert: (objectMemory isNonImmediate: newMethod).
-					self assert: (objectMemory isForwarded: newMethod) not.
-					primitiveFunctionPointer := #primitiveInvokeObjectAsMethod ].
+			primitiveFunctionPointer := self primitiveFunctionPointerFor: newMethod.
 
 			self clearSendSiteIndex.
 			^ true ] ].
