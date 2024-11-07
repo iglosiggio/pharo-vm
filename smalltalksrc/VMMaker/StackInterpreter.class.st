@@ -15840,8 +15840,18 @@ StackInterpreter >> tryToUseInlineCacheFor: classTag [
 			| methodSlot cachedMethod |
 			methodSlot := self slotForMethodAtSendSite: sendSiteIndex forOption: optionIndex.
 			cachedMethod := objectMemory fetchPointer: methodSlot - 1 ofObject: inlineCaches.
-			"TODO: Load primitiveFunctionPointer"
+
 			newMethod := cachedMethod.
+			(objectMemory isOopCompiledMethod: newMethod)
+				ifTrue: [
+					| index |
+					index := self primitiveIndexOf: newMethod.
+					primitiveFunctionPointer := self functionPointerFor: index ]
+				ifFalse: [
+					self assert: (objectMemory isNonImmediate: newMethod).
+					self assert: (objectMemory isForwarded: newMethod) not.
+					primitiveFunctionPointer := #primitiveInvokeObjectAsMethod ].
+
 			self clearSendSiteIndex.
 			^ true ] ].
 
