@@ -148,7 +148,7 @@ VMLookUpTest >> setUpClassAndMethod [
 { #category : 'tests' }
 VMLookUpTest >> testICLookUpCDoesNothingAfterThirdAttempt [
 
-	| receiverTagOop inlineCachesOop sendsiteIndexOop aMethodDictionary |
+	| receiverTagOop inlineCachesOop aMethodDictionary |
 	receiverClass := self setSmallIntegerClassIntoClassTable.
 	selectorOop := self
 		newClassInOldSpaceWithSlots: 0
@@ -170,12 +170,10 @@ VMLookUpTest >> testICLookUpCDoesNothingAfterThirdAttempt [
 			selectorOop };
 		buildMethod.
 
-	sendsiteIndexOop := memory integerObjectOf: 1.
 	methodOop := methodBuilder newMethod;
 		hasInlineCaches: true;
-		literals: { inlineCachesOop. selectorOop. sendsiteIndexOop };
+		literals: { inlineCachesOop. selectorOop. "SendSite index" memory integerObjectOf: 1 };
 		buildMethod.
-	receiver := memory integerObjectOf: 56.
 
 	self setUpMethodDictionaryIn: receiverClass.
 	aMethodDictionary := memory fetchPointer: MethodDictionaryIndex ofObject: receiverClass.
@@ -185,8 +183,7 @@ VMLookUpTest >> testICLookUpCDoesNothingAfterThirdAttempt [
 	stackBuilder buildStack.
 	interpreter
 		methodDictLinearSearchLimit: 3;
-		setMethod: methodOop.
-	interpreter
+		setMethod: methodOop;
 		messageSelector: selectorOop;
 		fetchSendSiteIndexIfPossible: 1;
 		findNewMethodInClassTag: memory smallIntegerTag.
@@ -207,7 +204,7 @@ VMLookUpTest >> testICLookUpCDoesNothingAfterThirdAttempt [
 { #category : 'tests' }
 VMLookUpTest >> testICLookUpCanUpdateFirstAttempt [
 
-	| receiverTagOop inlineCachesOop sendsiteIndexOop aMethodDictionary |
+	| receiverTagOop inlineCachesOop aMethodDictionary |
 	receiverClass := self setSmallIntegerClassIntoClassTable.
 	selectorOop := self
 		newClassInOldSpaceWithSlots: 0
@@ -229,12 +226,10 @@ VMLookUpTest >> testICLookUpCanUpdateFirstAttempt [
 			selectorOop };
 		buildMethod.
 
-	sendsiteIndexOop := memory integerObjectOf: 1.
 	methodOop := methodBuilder newMethod;
 		hasInlineCaches: true;
-		literals: { inlineCachesOop. selectorOop. sendsiteIndexOop };
+		literals: { inlineCachesOop. selectorOop. "SendSite index" memory integerObjectOf: 1 };
 		buildMethod.
-	receiver := memory integerObjectOf: 56.
 
 	self setUpMethodDictionaryIn: receiverClass.
 	aMethodDictionary := memory fetchPointer: MethodDictionaryIndex ofObject: receiverClass.
@@ -244,8 +239,7 @@ VMLookUpTest >> testICLookUpCanUpdateFirstAttempt [
 	stackBuilder buildStack.
 	interpreter
 		methodDictLinearSearchLimit: 3;
-		setMethod: methodOop.
-	interpreter
+		setMethod: methodOop;
 		messageSelector: selectorOop;
 		fetchSendSiteIndexIfPossible: 1;
 		findNewMethodInClassTag: memory smallIntegerTag.
@@ -266,7 +260,7 @@ VMLookUpTest >> testICLookUpCanUpdateFirstAttempt [
 { #category : 'tests' }
 VMLookUpTest >> testICLookUpCanUpdateSecondAttempt [
 
-	| receiverTagOop inlineCachesOop sendsiteIndexOop aMethodDictionary |
+	| receiverTagOop inlineCachesOop aMethodDictionary |
 	receiverClass := self setSmallIntegerClassIntoClassTable.
 	selectorOop := self
 		newClassInOldSpaceWithSlots: 0
@@ -288,12 +282,10 @@ VMLookUpTest >> testICLookUpCanUpdateSecondAttempt [
 			selectorOop };
 		buildMethod.
 
-	sendsiteIndexOop := memory integerObjectOf: 1.
 	methodOop := methodBuilder newMethod;
 		hasInlineCaches: true;
-		literals: { inlineCachesOop. selectorOop. sendsiteIndexOop };
+		literals: { inlineCachesOop. selectorOop. "SendSite index" memory integerObjectOf: 1 };
 		buildMethod.
-	receiver := memory integerObjectOf: 56.
 
 	self setUpMethodDictionaryIn: receiverClass.
 	aMethodDictionary := memory fetchPointer: MethodDictionaryIndex ofObject: receiverClass.
@@ -303,8 +295,7 @@ VMLookUpTest >> testICLookUpCanUpdateSecondAttempt [
 	stackBuilder buildStack.
 	interpreter
 		methodDictLinearSearchLimit: 3;
-		setMethod: methodOop.
-	interpreter
+		setMethod: methodOop;
 		messageSelector: selectorOop;
 		fetchSendSiteIndexIfPossible: 1;
 		findNewMethodInClassTag: memory smallIntegerTag.
@@ -325,7 +316,7 @@ VMLookUpTest >> testICLookUpCanUpdateSecondAttempt [
 { #category : 'tests' }
 VMLookUpTest >> testICLookUpCanUpdateThirdAttempt [
 
-	| receiverTagOop inlineCachesOop sendsiteIndexOop aMethodDictionary |
+	| receiverTagOop inlineCachesOop aMethodDictionary |
 	receiverClass := self setSmallIntegerClassIntoClassTable.
 	selectorOop := self
 		newClassInOldSpaceWithSlots: 0
@@ -347,12 +338,10 @@ VMLookUpTest >> testICLookUpCanUpdateThirdAttempt [
 			selectorOop };
 		buildMethod.
 
-	sendsiteIndexOop := memory integerObjectOf: 1.
 	methodOop := methodBuilder newMethod;
 		hasInlineCaches: true;
-		literals: { inlineCachesOop. selectorOop. sendsiteIndexOop };
+		literals: { inlineCachesOop. selectorOop. "SendSite index" memory integerObjectOf: 1 };
 		buildMethod.
-	receiver := memory integerObjectOf: 56.
 
 	self setUpMethodDictionaryIn: receiverClass.
 	aMethodDictionary := memory fetchPointer: MethodDictionaryIndex ofObject: receiverClass.
@@ -362,8 +351,7 @@ VMLookUpTest >> testICLookUpCanUpdateThirdAttempt [
 	stackBuilder buildStack.
 	interpreter
 		methodDictLinearSearchLimit: 3;
-		setMethod: methodOop.
-	interpreter
+		setMethod: methodOop;
 		messageSelector: selectorOop;
 		fetchSendSiteIndexIfPossible: 1;
 		findNewMethodInClassTag: memory smallIntegerTag.
@@ -384,7 +372,7 @@ VMLookUpTest >> testICLookUpCanUpdateThirdAttempt [
 { #category : 'tests' }
 VMLookUpTest >> testICLookUpUpdatedGoesThroughFastPath [
 
-	| receiverTagOop inlineCachesOop sendsiteIndexOop |
+	| receiverTagOop inlineCachesOop |
 	receiverClass := self setSmallIntegerClassIntoClassTable.
 	selectorOop := self
 		newClassInOldSpaceWithSlots: 0
@@ -406,19 +394,16 @@ VMLookUpTest >> testICLookUpUpdatedGoesThroughFastPath [
 			selectorOop };
 		buildMethod.
 
-	sendsiteIndexOop := memory integerObjectOf: 1.
 	methodOop := methodBuilder newMethod;
 		hasInlineCaches: true;
-		literals: { inlineCachesOop. selectorOop. sendsiteIndexOop };
+		literals: { inlineCachesOop. selectorOop. "SendSite index" memory integerObjectOf: 1 };
 		buildMethod.
-	receiver := memory integerObjectOf: 56.
 
 	stackBuilder addNewFrame method: methodOop.
 	stackBuilder buildStack.
 	interpreter
 		methodDictLinearSearchLimit: 3;
-		setMethod: methodOop.
-	interpreter
+		setMethod: methodOop;
 		messageSelector: selectorOop;
 		fetchSendSiteIndexIfPossible: 1;
 		findNewMethodInClassTag: memory smallIntegerTag.
