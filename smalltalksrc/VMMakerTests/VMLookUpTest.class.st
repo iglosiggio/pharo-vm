@@ -534,7 +534,7 @@ VMLookUpTest >> testICLookUpFollowsForwarders [
 		fetchSendSiteIndexIfPossible: 1;
 		findNewMethodInClassTag: memory smallIntegerTag.
 
-	"The IC was not updated"
+	"The IC was properly updated"
 	self assert: (interpreter literal: 1 ofMethod: inlineCachesOop) equals: receiverTagOop.
 	self assert: (interpreter literal: 2 ofMethod: inlineCachesOop) equals: objectOop.
 	self assert: (interpreter literal: 3 ofMethod: inlineCachesOop) equals: memory nilObject.
@@ -543,7 +543,7 @@ VMLookUpTest >> testICLookUpFollowsForwarders [
 	self assert: (interpreter literal: 6 ofMethod: inlineCachesOop) equals: memory nilObject.
 	self assert: (interpreter literal: 7 ofMethod: inlineCachesOop) equals: selectorOop.
 
-	"The new method is the expected one"
+	"The new method is not a forwarder"
 	self assert: interpreter newMethod equals: objectOop.
 ]
 
