@@ -493,6 +493,61 @@ VMLookUpTest >> testICLookUpDoesNotUseICsForSendsWithoutSendsite [
 ]
 
 { #category : 'tests' }
+VMLookUpTest >> testICLookUpFollowsForwarders [
+
+	| receiverTagOop inlineCachesOop forwarderOop objectOop |
+	receiverClass := self setSmallIntegerClassIntoClassTable.
+	selectorOop := self
+		newClassInOldSpaceWithSlots: 0
+		instSpec: memory nonIndexablePointerFormat.
+	receiverTagOop := memory integerObjectOf: (memory classTagForClass: receiverClass).
+
+	forwarderOop := self newObjectWithSlots: 0.
+	objectOop := (memory moveToPermSpace: forwarderOop).
+
+	inlineCachesOop := methodBuilder newMethod;
+		"FIXME: We should write a builder for inline caches"
+		literals: {
+			"CompiledMethod"
+			memory nilObject.
+			"SendSite 1 - Attempt 1"
+			receiverTagOop. forwarderOop.
+			"             Attempt 2"
+			memory nilObject. memory nilObject.
+			"             Attempt 3"
+			memory nilObject. memory nilObject.
+			"Fallback data"
+			selectorOop };
+		buildMethod.
+
+	methodOop := methodBuilder newMethod;
+		hasInlineCaches: true;
+		literals: { inlineCachesOop. selectorOop. "SendSite index" memory integerObjectOf: 1 };
+		buildMethod.
+
+	stackBuilder addNewFrame method: methodOop.
+	stackBuilder buildStack.
+	interpreter
+		methodDictLinearSearchLimit: 3;
+		setMethod: methodOop;
+		messageSelector: selectorOop;
+		fetchSendSiteIndexIfPossible: 1;
+		findNewMethodInClassTag: memory smallIntegerTag.
+
+	"The IC was not updated"
+	self assert: (interpreter literal: 1 ofMethod: inlineCachesOop) equals: receiverTagOop.
+	self assert: (interpreter literal: 2 ofMethod: inlineCachesOop) equals: objectOop.
+	self assert: (interpreter literal: 3 ofMethod: inlineCachesOop) equals: memory nilObject.
+	self assert: (interpreter literal: 4 ofMethod: inlineCachesOop) equals: memory nilObject.
+	self assert: (interpreter literal: 5 ofMethod: inlineCachesOop) equals: memory nilObject.
+	self assert: (interpreter literal: 6 ofMethod: inlineCachesOop) equals: memory nilObject.
+	self assert: (interpreter literal: 7 ofMethod: inlineCachesOop) equals: selectorOop.
+
+	"The new method is the expected one"
+	self assert: interpreter newMethod equals: objectOop.
+]
+
+{ #category : 'tests' }
 VMLookUpTest >> testICLookUpUpdatedGoesThroughFastPath [
 
 	| receiverTagOop inlineCachesOop |

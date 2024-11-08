@@ -5813,10 +5813,7 @@ StackInterpreter >> fetchFloat: fieldIndex ofObject: objectPointer [
 
 { #category : 'inline caches' }
 StackInterpreter >> fetchInlineCaches [
-	| inlineCaches |
-	inlineCaches := self literal: 0.
-	(objectMemory isForwarded: inlineCaches) ifFalse: [ ^ inlineCaches ].
-	^ objectMemory followForwarded: inlineCaches
+	^ self followLiteral: 0 ofMethod: method.
 ]
 
 { #category : 'utilities' }
@@ -15845,7 +15842,7 @@ StackInterpreter >> tryToUseInlineCacheFor: classTag [
 		cachedClassTag = classTagObject ifTrue: [
 			| methodSlot cachedMethod |
 			methodSlot := self slotForMethodAtSendSite: sendSiteIndex forOption: optionIndex.
-			cachedMethod := objectMemory fetchPointer: methodSlot - 1 ofObject: inlineCaches.
+			cachedMethod := objectMemory followObjField: methodSlot - 1 ofObject: inlineCaches.
 
 			newMethod := cachedMethod.
 			primitiveFunctionPointer := self primitiveFunctionPointerFor: newMethod.
