@@ -432,7 +432,6 @@ Class {
 		'MaxQuickPrimitiveIndex',
 		'MethodHeaderArgCountShift',
 		'MethodHeaderFlagBitPosition',
-		'MethodHeaderInlineCachesFlag',
 		'MethodHeaderTempCountShift',
 		'PrimitiveTable',
 		'ReturnToInterpreter',
@@ -931,7 +930,6 @@ StackInterpreter class >> initializeMethodIndices [
 	"The position of the unused flag bit in the method header, not including tag bit(s).
 	 Bits 28 & 29 are free for use as flag bits."
 	MethodHeaderFlagBitPosition := 28 + tagBits.
-	MethodHeaderInlineCachesFlag := 1 << (29 + tagBits).
 ]
 
 { #category : 'initialization' }
@@ -10184,12 +10182,6 @@ StackInterpreter >> methodDictLinearSearchLimit: anInteger [
 	methodDictLinearSearchLimit := anInteger
 ]
 
-{ #category : 'inline caches' }
-StackInterpreter >> methodHasInlineCaches: methodObj [
-
-	^ (objectMemory methodHeaderOf: methodObj) anyMask: MethodHeaderInlineCachesFlag
-]
-
 { #category : 'compiled methods' }
 StackInterpreter >> methodHeaderHasPrimitive: methodHeader [
 
@@ -13863,7 +13855,7 @@ StackInterpreter >> setMethod: aMethodObj [
 
 	<inline: true>
 	method := aMethodObj.
-	methodHasInlineCaches := self methodHasInlineCaches: aMethodObj.
+	methodHasInlineCaches := objectMemory methodHasInlineCaches: aMethodObj.
 	self assert: (objectMemory isOopCompiledMethod: method)
 ]
 

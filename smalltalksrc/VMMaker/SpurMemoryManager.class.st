@@ -628,6 +628,7 @@ Class {
 		'MarkObjectsForEnumerationPrimitives',
 		'MarkStackRecord',
 		'MarkStackRootIndex',
+		'MethodHeaderInlineCachesFlag',
 		'MournQueueRootIndex',
 		'ObjStackFixedSlots',
 		'ObjStackFreex',
@@ -810,7 +811,9 @@ SpurMemoryManager class >> initialize [
 
 	"gcPhaseInProgress takes these values to identify phases as required."
 	ScavengeInProgress := 1.
-	SlidingCompactionInProgress := 2
+	SlidingCompactionInProgress := 2.
+
+	MethodHeaderInlineCachesFlag := 1 << (29 + self numSmallIntegerTagBits).
 ]
 
 { #category : 'class initialization' }
@@ -9193,6 +9196,12 @@ SpurMemoryManager >> methodCacheHashOf: selector with: classTag [
 	 tag w.r.t. the selector to include the full class index/immediate tags in the hash."
 	<inline: true>
 	^selector bitXor: classTag << 2 "num cache probes - 1"
+]
+
+{ #category : 'inline caches' }
+SpurMemoryManager >> methodHasInlineCaches: methodObj [
+
+	^ (self methodHeaderOf: methodObj) anyMask: MethodHeaderInlineCachesFlag
 ]
 
 { #category : 'compaction' }
