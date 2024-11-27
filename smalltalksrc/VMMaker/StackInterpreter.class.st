@@ -3784,30 +3784,6 @@ StackInterpreter >> checkForAndFollowForwardedPrimitiveState [
 	^ self checkForAndFollowForwardedPrimitiveState: primIndex
 ]
 
-{ #category : 'primitive support' }
-StackInterpreter >> checkForAndFollowForwardedPrimitiveState: primitiveIndex [
-	"If the primitive is one of the meta primitives PrimNumberDoPrimitive or
-	 PrimNumberDoExternalCall, then metaAccessorDepth will have been set
-	 to nil at the start of the primitive, and to the accessor depth of the called
-	 primitive (or external call) immediately before dispatch.  Hence if primIndex
-	 is that of a meta primiitve then if metaAccessorDepth is -2, the accessor
-	 depth is that of the meta primitive, and if > -2, then metaAccessorDepth is
-	 the accessor depth of the primitive (or external call).  SImilarly, if the
-	 primitive is primitiveExternalCall then the accessor depth is that of
-	 primitiveExternalCall until primitiveFunctionPointer is assigned, at which
-	 point the accessor depth is taken from the slot in newMethod's first literal."
-
-	| accessorDepth |
-	accessorDepth := ((self isMetaPrimitiveIndex: primitiveIndex) and: [ metaAccessorDepth > -2 ])
-		                 ifTrue: [ metaAccessorDepth ]
-		                 ifFalse: [
-			                 (primitiveIndex = PrimNumberExternalCall and: [ primitiveFunctionPointer ~~ #primitiveExternalCall ])
-				                 ifTrue: [ self primitiveAccessorDepthForExternalPrimitiveMethod: newMethod ]
-				                 ifFalse: [ primitiveAccessorDepthTable at: primitiveIndex ] ].
-	self assert: (self saneFunctionPointerForFailureOfPrimIndex: primitiveIndex).
-	^ self followForwardedForAccessorDepth: accessorDepth
-]
-
 { #category : 'process primitive support' }
 StackInterpreter >> checkForEventsMayContextSwitch: mayContextSwitch [
 	"Check for possible interrupts and handle one if necessary.
@@ -6085,19 +6061,19 @@ StackInterpreter >> findNewMethodInClassTag: classTagArg ifFound: aBlock [
 	(self tryToUseInlineCacheFor: classTag) ifTrue: [
 		^ aBlock value ].
 
+	(self tryToUseInlineCacheFallback) ifTrue: [
+		^ aBlock value ].
+
 	"Inline cache failed, try the global lookup cache"
 	(self inlineLookupInMethodCacheSel: messageSelector classTag: classTag)
-		ifTrue: [
-			 self updateInlineCacheIfPossible: classTag.
-			^ aBlock value ]
+		ifTrue: [ ^ aBlock value ]
 		ifFalse: [
 			"All caches failed. Do a proper lookup"
 			lkupClass := objectMemory classForClassTag: classTag.
 			(objectMemory isOopForwarded: lkupClass) ifTrue: [
 				lkupClass := objectMemory followForwarded: lkupClass ].
 			self lookupMethodInClass: lkupClass.
-			self addNewMethodToCache: lkupClass.
-			self updateInlineCacheIfPossible: classTag ]
+			self addNewMethodToCache: lkupClass ]
 ]
 
 { #category : 'message sending' }
@@ -7775,12 +7751,6 @@ StackInterpreter >> inlineLookupInMethodCacheSel: selector classTag: classTag [
 			^true	"found entry in cache; done"].
 
 	^false
-]
-
-{ #category : 'inline caches' }
-StackInterpreter >> inlinedAttempts [
-	"Copied from CompiledCodeInlineCache class>>#inlinedAttempts"
-	^ 3
 ]
 
 { #category : 'frame access' }
@@ -10323,7 +10293,7 @@ StackInterpreter >> moveFramesIn: oldPage through: theFP toPage: newPage [
 		by: objectMemory wordSize negated
 		do: [:source|
 			newSP := newSP - objectMemory wordSize.
-			stackPages longAt: newSP put: (stackPages longAt: source)].
+			stackPages unsignedLongAt: newSP put: (stackPages unsignedLongAt: source)].
 
 	"newSP = oldSP + delta => delta = newSP - oldSP"
 	delta := newSP - oldPage headSP.
@@ -10380,12 +10350,6 @@ StackInterpreter >> nameOfClass: classOop [
 		objectMemory isBytes: maybeNameOop]) ifFalse:
 		[^'bad class'].
 	^objectMemory firstIndexableField: maybeNameOop
-]
-
-{ #category : 'inline caches' }
-StackInterpreter >> nativePointersPerSendSite [
-	"Copied from CompiledCodeInlineCache class>>#nativePointersPerSendSite"
-	^ self inlinedAttempts + 1 "fallback"
 ]
 
 { #category : 'image save/restore' }
@@ -13186,7 +13150,7 @@ StackInterpreter >> reapAndResetErrorCodeTo: theFP header: methodHeader [
 { #category : 'internal interpreter access' }
 StackInterpreter >> receiver [
 	<inline: true>
-	^stackPages longAt: framePointer + FoxIFReceiver
+	^stackPages unsignedLongAt: framePointer + FoxIFReceiver
 ]
 
 { #category : 'process primitive support' }
@@ -13689,16 +13653,6 @@ StackInterpreter >> sendLiteralSelector2ArgsBytecode [
 	lkupClassTag := objectMemory fetchClassTagOf: rcvr.
 	self assert: lkupClassTag ~= objectMemory nilObject.
 	self commonSendOrdinary
-]
-
-{ #category : 'inline caches' }
-StackInterpreter >> sendSiteCacheSize [
-	"Copied from CompiledCodeInlineCache class>>#sendSiteCacheSize"
-	^ self inlinedAttempts * ( " for each attempt..."
-			1 + "cached class"
-			1 "cached method"
-		) +
-		1 "cached fallback"
 ]
 
 { #category : 'debug support' }
@@ -14620,37 +14574,6 @@ StackInterpreter >> sizeOfSTArrayFromCPrimitive: cPtr [
 		^0].
 	^objectMemory lengthOf: oop
 
-]
-
-{ #category : 'inline caches' }
-StackInterpreter >> slotAtSendSite: aSendSiteIndex [ 
-	"Copied from CompiledCodeInlineCache class>>#slotAtSendSite:"
-	^ 1 + "initial slot"
-		1 + "skip header"
-		1 + "skip compiled code"
-		((aSendSiteIndex - 1) * self sendSiteCacheSize) "skip each previous send site"
-]
-
-{ #category : 'inline caches' }
-StackInterpreter >> slotForClassAtSendSite: aSendSiteIndex forOption: anOptionIdx [
-	"Copied from CompiledCodeInlineCache class>>#slotForClassAtSendSite:forOption:"
-	^ (self slotAtSendSite: aSendSiteIndex) + ((
-			1 + "class to check"
-			1 "method to call"
-		) * (anOptionIdx - 1)) "the previous options"
-]
-
-{ #category : 'inline caches' }
-StackInterpreter >> slotForFallbackDataAtSendSite: aSendSiteIndex [
-	"Copied from CompiledCodeInlineCache class>>#slotForFallbackDataAtSendSite:"
-	^ (self slotAtSendSite: aSendSiteIndex + 1) - 1 "One slot before the next SendSite"
-]
-
-{ #category : 'inline caches' }
-StackInterpreter >> slotForMethodAtSendSite: aSendSiteIndex forOption: anOptionIdx [
-	"Copied from CompiledCodeInlineCache class>>#slotForMethodAtSendSite:forOption:"
-	^ (self slotForClassAtSendSite: aSendSiteIndex forOption: anOptionIdx) +
-		1 "the method for this option"
 ]
 
 { #category : 'primitive support' }
@@ -15818,6 +15741,38 @@ StackInterpreter >> tryLoadNewPlugin: pluginString pluginEntries: pluginEntries 
 ]
 
 { #category : 'inline caches' }
+StackInterpreter >> tryToUseInlineCacheFallback [ 
+	| inlineCaches fallbackDataSlot fallbackMethodSlot fallbackData fallbackMethod |
+
+	sendSiteIndex = -1 ifTrue: [ ^ false ].
+
+	self assert: methodHasInlineCaches.
+
+	inlineCaches := self fetchInlineCaches.
+
+	fallbackDataSlot := objectMemory slotForFallbackDataAtSendSite: sendSiteIndex.
+	fallbackMethodSlot := objectMemory slotForFallbackMethodAtSendSite: sendSiteIndex.
+	fallbackData := objectMemory fetchPointer: fallbackDataSlot - 1 ofObject: inlineCaches.
+	fallbackMethod := objectMemory fetchPointer: fallbackMethodSlot - 1 ofObject: inlineCaches.
+
+	(objectMemory isCompiledMethod: fallbackMethod) ifFalse: [ ^false ].
+
+	"FIXME: Add fast path for known strategies"
+	self push: inlineCaches.
+	self push: (objectMemory integerObjectOf: sendSiteIndex).
+	self push: (objectMemory integerObjectOf: argumentCount).
+	self push: fallbackData.
+
+	newMethod := fallbackData.
+	primitiveFunctionPointer := self primitiveFunctionPointerFor: newMethod.
+	self executeNewMethod: false.
+	self fetchNextBytecode.
+
+	sendSiteIndex := -1.
+	^ true.
+]
+
+{ #category : 'inline caches' }
 StackInterpreter >> tryToUseInlineCacheFor: classTag [
 	| inlineCaches classTagObject |
 
@@ -15827,13 +15782,13 @@ StackInterpreter >> tryToUseInlineCacheFor: classTag [
 
 	inlineCaches := self fetchInlineCaches.
 	classTagObject := objectMemory integerObjectOf: classTag.
-	1 to: self inlinedAttempts do: [ :optionIndex |
+	1 to: objectMemory inlinedAttempts do: [ :optionIndex |
 		| classSlot cachedClassTag |
-		classSlot := self slotForClassAtSendSite: sendSiteIndex forOption: optionIndex.
+		classSlot := objectMemory slotForClassAtSendSite: sendSiteIndex forOption: optionIndex.
 		cachedClassTag := objectMemory fetchPointer: classSlot - 1 ofObject: inlineCaches.
 		cachedClassTag = classTagObject ifTrue: [
 			| methodSlot cachedMethod |
-			methodSlot := self slotForMethodAtSendSite: sendSiteIndex forOption: optionIndex.
+			methodSlot := objectMemory slotForMethodAtSendSite: sendSiteIndex forOption: optionIndex.
 			cachedMethod := objectMemory followObjField: methodSlot - 1 ofObject: inlineCaches.
 
 			newMethod := cachedMethod.
@@ -16185,12 +16140,12 @@ StackInterpreter >> updateInlineCacheIfPossible: classTag [
 
 	"... otherwise lets update the IC"
 	inlineCaches := self fetchInlineCaches.
-	1 to: self inlinedAttempts do: [ :optionIndex |
+	1 to: objectMemory inlinedAttempts do: [ :optionIndex |
 		| cachedClassSlot cachedClass cachedMethodSlot |
-		cachedClassSlot := self slotForClassAtSendSite: sendSiteIndex forOption: optionIndex.
+		cachedClassSlot := objectMemory slotForClassAtSendSite: sendSiteIndex forOption: optionIndex.
 		cachedClass := objectMemory fetchPointer: cachedClassSlot - 1 ofObject: inlineCaches.
 		cachedClass = objectMemory nilObject ifTrue: [
-			cachedMethodSlot := self slotForMethodAtSendSite: sendSiteIndex forOption: optionIndex.
+			cachedMethodSlot := objectMemory slotForMethodAtSendSite: sendSiteIndex forOption: optionIndex.
 			objectMemory storePointer: cachedClassSlot - 1 ofObject: inlineCaches withValue: classTagObj.
 			objectMemory storePointer: cachedMethodSlot - 1 ofObject: inlineCaches withValue: newMethod.
 			self clearSendSiteIndex.

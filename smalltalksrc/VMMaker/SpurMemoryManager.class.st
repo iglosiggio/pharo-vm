@@ -6930,6 +6930,12 @@ SpurMemoryManager >> initializeWeaklingStack [
 	self ensureRoomOnObjStackAt: WeaklingStackRootIndex
 ]
 
+{ #category : 'inline caches' }
+SpurMemoryManager >> inlinedAttempts [
+	"Copied from CompiledCodeInlineCache class>>#inlinedAttempts"
+	^ 3
+]
+
 { #category : 'become implementation' }
 SpurMemoryManager >> innerBecomeObjectsIn: array1 and: array2 copyHash: copyHashFlag [
 	"Inner loop of two-way become."
@@ -11596,15 +11602,6 @@ SpurMemoryManager >> rtRefCountOf: obj put: refCount [
 ]
 
 { #category : 'debug support' }
-SpurMemoryManager >> runLeakCheckerFor: gcModes [
-	<inline: false>
-	^self
-		inLineRunLeakCheckerFor: gcModes
-		excludeUnmarkedObjs: false
-		classIndicesShouldBeValid: true
-]
-
-{ #category : 'debug support' }
 SpurMemoryManager >> runLeakCheckerFor: gcModes excludeUnmarkedObjs: excludeUnmarkedObjs classIndicesShouldBeValid: classIndicesShouldBeValid [
 	<inline: false>
 	self inLineRunLeakCheckerFor: gcModes
@@ -11726,6 +11723,17 @@ SpurMemoryManager >> segmentBridgePun [
 { #category : 'accessing' }
 SpurMemoryManager >> segmentManager [
 	^segmentManager
+]
+
+{ #category : 'inline caches' }
+SpurMemoryManager >> sendSiteCacheSize [
+	"Copied from CompiledCodeInlineCache class>>#sendSiteCacheSize"
+	^ self inlinedAttempts * ( " for each attempt..."
+			1 + "cached class"
+			1 "cached method"
+		) +
+		1 + "cached fallback data"
+		1 "cached fallback method"
 ]
 
 { #category : 'header access' }
@@ -12215,6 +12223,42 @@ SpurMemoryManager >> slidingCompactionShouldRemapObj: objOop [
 					ifTrue: [(memoryMap isYoungObject: objOop)
 							and: [(self isInFutureSpace: objOop) not]]
 					ifFalse: [compactor isMobile: objOop]]]
+]
+
+{ #category : 'inline caches' }
+SpurMemoryManager >> slotAtSendSite: aSendSiteIndex [ 
+	"Copied from CompiledCodeInlineCache class>>#slotAtSendSite:"
+	^ 1 + "initial slot"
+		1 + "skip compiled code"
+		((aSendSiteIndex - 1) * self sendSiteCacheSize) "skip each previous send site"
+]
+
+{ #category : 'inline caches' }
+SpurMemoryManager >> slotForClassAtSendSite: aSendSiteIndex forOption: anOptionIdx [
+	"Copied from CompiledCodeInlineCache class>>#slotForClassAtSendSite:forOption:"
+	^ (self slotAtSendSite: aSendSiteIndex) + ((
+			1 + "class to check"
+			1 "method to call"
+		) * (anOptionIdx - 1)) "the previous options"
+]
+
+{ #category : 'inline caches' }
+SpurMemoryManager >> slotForFallbackDataAtSendSite: aSendSiteIndex [
+	"Copied from CompiledCodeInlineCache class>>#slotForFallbackDataAtSendSite:"
+	^ (self slotAtSendSite: aSendSiteIndex + 1) - 2 "Two slots before the next SendSite"
+]
+
+{ #category : 'inline caches' }
+SpurMemoryManager >> slotForFallbackMethodAtSendSite: aSendSiteIndex [
+	"Copied from CompiledCodeInlineCache class>>#slotForFallbackMethodAtSendSite:"
+	^ (self slotAtSendSite: aSendSiteIndex + 1) - 1 "One slot before the next SendSite"
+]
+
+{ #category : 'inline caches' }
+SpurMemoryManager >> slotForMethodAtSendSite: aSendSiteIndex forOption: anOptionIdx [
+	"Copied from CompiledCodeInlineCache class>>#slotForMethodAtSendSite:forOption:"
+	^ (self slotForClassAtSendSite: aSendSiteIndex forOption: anOptionIdx) +
+		1 "the method for this option"
 ]
 
 { #category : 'object access' }
