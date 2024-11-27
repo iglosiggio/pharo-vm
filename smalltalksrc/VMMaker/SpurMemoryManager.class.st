@@ -813,7 +813,7 @@ SpurMemoryManager class >> initialize [
 	ScavengeInProgress := 1.
 	SlidingCompactionInProgress := 2.
 
-	MethodHeaderInlineCachesFlag := 1 << (29 + self numSmallIntegerTagBits).
+	"MethodHeaderInlineCachesFlag is initialized by the subclasses"
 ]
 
 { #category : 'class initialization' }

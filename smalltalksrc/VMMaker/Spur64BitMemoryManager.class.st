@@ -7,6 +7,12 @@ Class {
 }
 
 { #category : 'class initialization' }
+Spur64BitMemoryManager class >> initialize [
+
+	MethodHeaderInlineCachesFlag := 1 << (29 + self numSmallIntegerTagBits).
+]
+
+{ #category : 'class initialization' }
 Spur64BitMemoryManager class >> initializeWithOptions: optionsDictionary [
 	"SpurMemoryManager initializeWithOptions: Dictionary new"
 
