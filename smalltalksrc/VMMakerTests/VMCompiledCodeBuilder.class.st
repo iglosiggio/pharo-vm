@@ -96,7 +96,6 @@ VMCompiledCodeBuilder >> classIndexToUse [
 VMCompiledCodeBuilder >> fillFromPharoMethod: aCompiledMethod [
 
 	self newMethod.
-	self hasInlineCaches: aCompiledMethod hasInlineCaches.
 	self numberOfTemporaries: aCompiledMethod numTemps.
 	self numberOfArguments: aCompiledMethod numArgs.
 	self bytecodes: aCompiledMethod bytecodes.

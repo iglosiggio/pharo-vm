@@ -1204,18 +1204,6 @@ CoInterpreter >> ceInterpretMethodFromPIC: aMethodObj receiver: rcvr [
 ]
 
 { #category : 'trampolines' }
-CoInterpreter >> ceInterpretedSend: aMethod [
-	<api>
-
-	instructionPointer := self popStack.
-	newMethod := aMethod.
-	primitiveFunctionPointer := self primitiveFunctionPointerFor: newMethod.
-
-	self executeNewMethod: false.
-	self returnToExecutive: false
-]
-
-{ #category : 'trampolines' }
 CoInterpreter >> ceMNUFromPICMNUMethod: aMethodObj receiver: rcvr [
 	<api>
 	| cPIC primitiveIndex |
