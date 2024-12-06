@@ -15787,6 +15787,7 @@ StackInterpreter >> tryToUseInlineCacheFallback [
 	self push: (objectMemory integerObjectOf: argumentCount).
 	self push: fallbackData.
 
+	argumentCount := 3.
 	newMethod := fallbackData.
 	primitiveFunctionPointer := self primitiveFunctionPointerFor: newMethod.
 
