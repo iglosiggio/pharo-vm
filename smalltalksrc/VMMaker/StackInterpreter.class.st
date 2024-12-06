@@ -15779,7 +15779,7 @@ StackInterpreter >> tryToUseInlineCacheFallback [
 	fallbackData := objectMemory fetchPointer: fallbackDataSlot - 1 ofObject: inlineCaches.
 	fallbackMethod := objectMemory fetchPointer: fallbackMethodSlot - 1 ofObject: inlineCaches.
 
-	(objectMemory isCompiledMethod: fallbackMethod) ifFalse: [ ^false ].
+	(objectMemory isCompiledMethod: fallbackMethod) ifFalse: [ ^ false ].
 
 	"FIXME: Add fast path for known strategies"
 	self push: inlineCaches.
@@ -15789,8 +15789,6 @@ StackInterpreter >> tryToUseInlineCacheFallback [
 
 	newMethod := fallbackData.
 	primitiveFunctionPointer := self primitiveFunctionPointerFor: newMethod.
-	self executeNewMethod: false.
-	self fetchNextBytecode.
 
 	sendSiteIndex := -1.
 	^ true.
