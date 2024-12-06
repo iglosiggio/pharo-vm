@@ -2334,6 +2334,15 @@ SimpleStackBasedCogit >> genSend: selectorIndex numArgs: numArgs [
 
 { #category : 'bytecode generator support' }
 SimpleStackBasedCogit >> genSend: selectorIndex numArgs: numArgs sendTable: sendTable [
+	<inline: true>
+
+	(self usesNewInlineCaches and: [ 0 <= selectorIndex ])
+		ifTrue: [ ^ self genSendNew: selectorIndex numArgs: numArgs sendTable: sendTable ]
+		ifFalse: [ ^ self genSendClassic: selectorIndex numArgs: numArgs sendTable: sendTable ]
+]
+
+{ #category : 'bytecode generator support' }
+SimpleStackBasedCogit >> genSendClassic: selectorIndex numArgs: numArgs sendTable: sendTable [
 	<inline: false>
 	<var: #sendTable type: #'sqInt *'>
 	| annotation |
@@ -2389,6 +2398,121 @@ SimpleStackBasedCogit >> genSendLiteralSelector1ArgBytecode [
 SimpleStackBasedCogit >> genSendLiteralSelector2ArgsBytecode [
 
 	^self genSend: (byte0 bitAnd: 15) numArgs: 2
+]
+
+{ #category : 'bytecode generator support' }
+SimpleStackBasedCogit >> genSendNew: selectorIndex numArgs: numArgs sendTable: sendTable [
+	"UNKNOWNS:
+		- Which instructions should be annotated? All calls? All callRT?"
+	<inline: false>
+	<var: #sendTable type: #'sqInt *'>
+	<var: #nonObjectSlowPath declareC: 'AbstractInstruction* forwarderSlowPath[objectMemoryInlinedAttempts]'>
+	<var: #forwarderSlowPath declareC: 'AbstractInstruction* forwarderSlowPath[objectMemoryInlinedAttempts]'>
+	<var: #nonCoggedSlowPath declareC: 'AbstractInstruction* forwarderSlowPath[objectMemoryInlinedAttempts + 1]'>
+	<var: #cacheHitFastPath  declareC: 'AbstractInstruction* forwarderSlowPath[objectMemoryInlinedAttempts + 1 + 1]'>
+	| annotation inlineCaches sendSiteIndex jumpPrevCase
+	  classSlot methodSlot fallbackDataSlot
+	  nonObjectSlowPath forwarderSlowPath nonCoggedSlowPath cacheHitFastPath
+	  onNonObjectLabel onForwarderLabel onNonCoggedLabel onCacheHitLabel
+	  nonObjectJump forwarderJump nonCoggedJump cacheHitJump |
+	self assert: needsFrame.
+	annotation := self annotationForSendTable: sendTable.
+	self assert: (numArgs between: 0 and: 255).
+	self MoveMw: numArgs * objectMemory wordSize r: SPReg R: ReceiverResultReg.
+
+	"Deal with stale super sends; see SpurMemoryManager's class comment."
+	(self annotationIsForUncheckedEntryPoint: annotation) ifTrue:
+		[objectRepresentation genEnsureOopInRegNotForwarded: ReceiverResultReg scratchReg: TempReg].
+	(BytecodeSetHasDirectedSuperSend
+	 and: [annotation
+			between: IsDirectedSuperSend
+			and: IsDirectedSuperBindingSend]) ifTrue:
+		[self genMoveConstant: tempOop R: TempReg].
+
+	self assert: 2 < (objectMemory literalCountOf: methodObj).
+	inlineCaches := self getLiteral: 0.
+	self assert: (objectMemory addressCouldBeOop: inlineCaches).
+
+	"FIXME: If we want to cache some literals here we should also invalidate the cogged methods when objectAt:put: runs"
+	self assert: (selectorIndex + 1 between: 0 and: (objectMemory literalCountOf: methodObj) - 1).
+	sendSiteIndex := self getLiteral: selectorIndex + 1.
+	self assert: (objectMemory isIntegerObject: sendSiteIndex).
+	sendSiteIndex := objectMemory integerValueOf: sendSiteIndex.
+
+	self genMoveConstant: inlineCaches R: ClassReg.
+	objectRepresentation genEnsureOopInRegNotForwarded: ClassReg scratchReg: Extra0Reg.
+
+	self cCode: [] inSmalltalk: [
+		nonObjectSlowPath := CArrayAccessor on: (Array new: objectMemory inlinedAttempts).
+		forwarderSlowPath := CArrayAccessor on: (Array new: objectMemory inlinedAttempts).
+		nonCoggedSlowPath := CArrayAccessor on: (Array new: objectMemory inlinedAttempts + 1).
+		cacheHitFastPath  := CArrayAccessor on: (Array new: objectMemory inlinedAttempts + 1 + 1) ].
+	jumpPrevCase := nil.
+
+	objectRepresentation genGetInlineCacheClassTagFrom: ReceiverResultReg into: Extra0Reg forEntry: false.
+	objectRepresentation genConvertIntegerToSmallIntegerInReg: Extra0Reg.
+
+	1 to: objectMemory inlinedAttempts do: [ :i |
+		jumpPrevCase ifNotNil: [ jumpPrevCase jmpTarget: (self Label) ].
+
+		classSlot := objectMemory slotForClassAtSendSite: sendSiteIndex forOption: i.
+		methodSlot := objectMemory slotForMethodAtSendSite: sendSiteIndex forOption: i.
+
+		objectRepresentation genLoadSlot: classSlot - 1 sourceReg: ClassReg destReg: SendNumArgsReg.
+		self CmpR: Extra0Reg R: SendNumArgsReg.
+		jumpPrevCase := self JumpNonZero: 0.
+
+		objectRepresentation genLoadSlot: methodSlot - 1 sourceReg: ClassReg destReg: ClassReg.
+		nonObjectJump := objectRepresentation genJumpImmediate: ClassReg.
+		forwarderJump := objectRepresentation genJumpForwarder: ClassReg scratchReg: Extra1Reg.
+		"FIXME: We don't even know if the object is a method!"
+		objectRepresentation genLoadSlot: HeaderIndex sourceReg: ClassReg destReg: Extra0Reg.
+		nonCoggedJump := objectRepresentation genJumpImmediate: Extra0Reg.
+		self AddCq: cmNoCheckEntryOffset R: Extra0Reg.
+		self CallR: Extra0Reg.
+		cacheHitJump := self Jump: 0.
+
+		nonObjectSlowPath at: i - 1 put: nonObjectJump.
+		forwarderSlowPath at: i - 1 put: forwarderJump.
+		nonCoggedSlowPath at: i - 1 put: nonCoggedJump.
+		cacheHitFastPath  at: i - 1 put: cacheHitJump ].
+
+	onForwarderLabel := self Label.
+	"FIXME: We don't have to check! If we are here then it is a forwarder."
+	objectRepresentation genEnsureOopInRegNotForwarded: ClassReg scratchReg: Extra0Reg.
+	"FIXME: We don't even know if the object is a method!"
+	objectRepresentation genLoadSlot: HeaderIndex sourceReg: ClassReg destReg: Extra0Reg.
+	nonCoggedJump := objectRepresentation genJumpImmediate: Extra0Reg.
+	self AddCq: cmNoCheckEntryOffset R: Extra0Reg.
+	self CallR: Extra0Reg.
+	cacheHitJump := self Jump: 0.
+	nonCoggedSlowPath at: objectMemory inlinedAttempts put: nonCoggedJump.
+	cacheHitFastPath at: objectMemory inlinedAttempts put: cacheHitJump.
+
+	onNonCoggedLabel := self Label.
+	self CallRT: ceInterpretedSendTrampoline.
+	cacheHitJump := self Jump: 0.
+	cacheHitFastPath at: objectMemory inlinedAttempts + 1 put: cacheHitJump.
+
+	jumpPrevCase jmpTarget: self Label.
+	fallbackDataSlot := objectMemory slotForFallbackDataAtSendSite: sendSiteIndex.
+	objectRepresentation genLoadSlot: fallbackDataSlot - 1 sourceReg: ClassReg destReg: Extra0Reg.
+	self MoveCq: numArgs R: SendNumArgsReg.
+	(self Call: ceCPICMissTrampoline) annotation: annotation.
+
+	onCacheHitLabel := self Label.
+	self PushR: ReceiverResultReg.
+
+	onNonObjectLabel := 16rFAFAFA "Just crash".
+	0 to: objectMemory inlinedAttempts - 1 do: [ :i |
+		(nonObjectSlowPath at: i) jmpTarget: onNonCoggedLabel "onNonObjectLabel".
+		(forwarderSlowPath at: i) jmpTarget: onForwarderLabel.
+		(nonCoggedSlowPath at: i) jmpTarget: onNonCoggedLabel.
+		(cacheHitFastPath  at: i) jmpTarget: onCacheHitLabel ].
+	(nonCoggedSlowPath at: objectMemory inlinedAttempts) jmpTarget: onNonCoggedLabel.
+	(cacheHitFastPath  at: objectMemory inlinedAttempts) jmpTarget: onCacheHitLabel.
+	(cacheHitFastPath  at: objectMemory inlinedAttempts + 1) jmpTarget: onCacheHitLabel.
+	^0
 ]
 
 { #category : 'bytecode generator support' }

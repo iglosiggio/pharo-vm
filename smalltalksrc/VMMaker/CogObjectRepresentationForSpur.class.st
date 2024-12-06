@@ -1121,6 +1121,17 @@ CogObjectRepresentationForSpur >> genJumpCharacterInScratchReg: reg [
 ]
 
 { #category : 'compile abstract instructions' }
+CogObjectRepresentationForSpur >> genJumpForwarder: oopReg scratchReg: scratchReg [
+	self assert: oopReg ~= scratchReg.
+	
+	cogit MoveMw: 0 r: oopReg R: scratchReg.
+	cogit
+		AndCq: objectMemory classIndexMask - objectMemory isForwardedObjectClassIndexPun
+		R: scratchReg.
+	^ cogit JumpZero: 0.
+]
+
+{ #category : 'compile abstract instructions' }
 CogObjectRepresentationForSpur >> genJumpImmediate: aRegister [
 	<returnTypeC: #'AbstractInstruction *'>
 	cogit TstCq: objectMemory tagMask R: aRegister.

@@ -257,7 +257,9 @@ Class {
 		'statCompileMethodUsecs',
 		'jitCodeZoneWriteEnabled',
 		'cePrimReturnEnterCogCode',
-		'cePrimReturnEnterCogCodeProfiling'
+		'cePrimReturnEnterCogCodeProfiling',
+		'usesNewInlineCaches',
+		'ceInterpretedSendTrampoline'
 	],
 	#classVars : [
 		'AnnotationConstantNames',
@@ -3937,6 +3939,12 @@ Cogit >> ceFree: pointer [
 ]
 
 { #category : 'accessing' }
+Cogit >> ceInterpretedSendTrampoline [
+	<doNotGenerate>
+	^ ceInterpretedSendTrampoline
+]
+
+{ #category : 'accessing' }
 Cogit >> ceLargeActiveContextInFullBlockTrampoline [
 
 	<doNotGenerate>
@@ -4553,6 +4561,7 @@ Cogit >> cog: aMethodObj selector: aSelectorOop [
 	methodObj := aMethodObj.
 	methodHeader := objectMemory methodHeaderOf: aMethodObj.
 	receiverTags := objectMemory receiverTagBitsForMethod: methodObj.
+	usesNewInlineCaches := objectMemory methodHasInlineCaches: aMethodObj.
 	cogMethod := self compileCogMethod: aSelectorOop.
 	(cogMethod asInteger between: MaxNegativeErrorCode and: -1) ifTrue:
 		[cogMethod asInteger = InsufficientCodeSpace ifTrue:
@@ -4768,6 +4777,7 @@ Cogit >> cogFullBlockMethod: aMethodObj numCopied: numCopied [
 	methodObj := aMethodObj.
 	methodHeader := objectMemory methodHeaderOf: aMethodObj.
 	receiverTags := objectMemory receiverTagBitsForMethod: methodObj.
+	usesNewInlineCaches := objectMemory methodHasInlineCaches: aMethodObj.
 	cogMethod := self compileCogFullBlockMethod: numCopied.
 	(cogMethod asInteger between: MaxNegativeErrorCode and: -1) ifTrue:
 		[cogMethod asInteger = InsufficientCodeSpace ifTrue:
@@ -8038,7 +8048,11 @@ Cogit >> generateSendTrampolines [
 					  arg: ReceiverResultReg
 					  arg: (self numArgsOrSendNumArgsReg: numArgs))].
 	firstSend := ordinarySendTrampolines at: 0.
-	lastSend := superSendTrampolines at: NumSendTrampolines - 1
+	lastSend := superSendTrampolines at: NumSendTrampolines - 1.
+
+	ceInterpretedSendTrampoline := self genTrampolineFor: #ceInterpretedSend:
+		called: (self trampolineName: 'ceInterpretedSend' numArgs: 1)
+		arg: ClassReg
 ]
 
 { #category : 'initialization' }
@@ -8497,6 +8511,7 @@ Cogit >> initialize [
 	statCompileMethodCount := 0.
 	statCompileMethodUsecs := 0.
 	jitCodeZoneWriteEnabled := false.
+	usesNewInlineCaches := false.
 ]
 
 { #category : 'initialization' }
@@ -12121,6 +12136,18 @@ Cogit >> unlinkSendsToFree [
 				[cogMethod cmType = CMPolymorphicIC ifTrue:
 					[self assert: (self noTargetsFreeInClosedPIC: cogMethod)]].
 		cogMethod := methodZone methodAfter: cogMethod]
+]
+
+{ #category : 'accessing' }
+Cogit >> usesNewInlineCaches [
+	<inline: true>
+	^ usesNewInlineCaches
+]
+
+{ #category : 'accessing' }
+Cogit >> usesNewInlineCaches: aBoolean [
+	<doNotGenerate>
+	usesNewInlineCaches := aBoolean
 ]
 
 { #category : 'accessing' }
