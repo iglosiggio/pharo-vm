@@ -2896,16 +2896,20 @@ CoInterpreter >> handleUnlinkedSendFor: maybeForwardedSelector to: receiver isSu
 	<inline: #always>
 	<var: #cogMethod type: #'CogMethod *'>
 	<var: #mnuPIC type: #'CogMethod *'>
-	| selector found cogMethod |
+	| icTable selector found cogMethod |
 	cogit assertCStackWellAligned.
 	self deny: (objectMemory isForwardedClassTag: classTag).
 	self assert: (objectMemory isNotForwarded: receiver).
 	argumentCount := numArgs.
 
-	selector := maybeForwardedSelector.
-	(objectMemory isOopForwarded: maybeForwardedSelector) ifTrue: [
-		selector := self handleForwardedSelectorFaultFor:
-			            maybeForwardedSelector ].
+	icTable := maybeForwardedSelector.
+	(objectMemory isOopForwarded: icTable) ifTrue: [
+		icTable := objectMemory followForwarded: icTable ].
+
+	selector := objectMemory fetchPointer: 0 ofObject: icTable.
+	(objectMemory isOopForwarded: icTable) ifTrue: [
+		selector := self handleForwardedSelectorFaultFor: selector.
+		objectMemory storePointer: 0 ofObject: icTable withValue: selector ].
 
 	found := self lookupInMethodCacheSel: selector classTag: classTag.
 	found ifTrue: [ "

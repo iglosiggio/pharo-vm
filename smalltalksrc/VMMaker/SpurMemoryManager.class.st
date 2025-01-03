@@ -1920,6 +1920,31 @@ SpurMemoryManager >> allocateClassTable [
 	^ classTableRootOop
 ]
 
+{ #category : 'allocation' }
+SpurMemoryManager >> allocateICTable: selectorOop [
+
+	<api>
+	| result |
+	self assert: (self addressCouldBeOop: selectorOop).
+
+	result := self
+		          allocateSlots: 4
+		          format: self arrayFormat
+		          classIndex: ClassArrayCompactIndex
+		          isPinned: false
+		          isOldSpace: true.
+	result ifNotNil: [
+		"Selector"
+		self storePointer: 0 ofObject: result withValue: selectorOop.
+		"Cache tag 0"
+		self storePointer: 1 ofObject: result withValue: (self integerObjectOf: 0).
+		"Cache operand 0"
+		self storePointer: 2 ofObject: result withValue: (self integerObjectOf: 0).
+		"Cache value 0"
+		self storePointer: 3 ofObject: result withValue: (self integerObjectOf: 0). ].
+	^ result
+]
+
 { #category : 'free space' }
 SpurMemoryManager >> allocateLargestFreeChunk [
 	"Answer the largest free chunk in the free lists."

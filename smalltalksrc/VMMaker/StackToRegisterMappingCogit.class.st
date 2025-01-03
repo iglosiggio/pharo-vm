@@ -1997,27 +1997,39 @@ StackToRegisterMappingCogit >> genMappedInlinePrimitive: primIndex [
 
 { #category : 'bytecode generator support' }
 StackToRegisterMappingCogit >> genMarshalledSend: selectorIndex numArgs: numArgs sendTable: sendTable [
+
 	<inline: false>
 	<var: #sendTable type: #'sqInt *'>
-	| annotation |
+	| annotation picTable selectorOop |
 	self assert: needsFrame.
+
+	selectorOop := selectorIndex < 0
+		               ifTrue: [
+		               coInterpreter specialSelector: -1 - selectorIndex ]
+		               ifFalse: [ self getLiteral: selectorIndex ].
+	picTable := objectMemory allocateICTable: selectorOop.
+	picTable ifNil: [ ^ InsufficientCodeSpace ].
+
 	annotation := self annotationForSendTable: sendTable.
 	"Deal with stale super sends; see SpurMemoryManager's class comment."
-	(self annotationIsForUncheckedEntryPoint: annotation) ifTrue:
-		[objectRepresentation genEnsureOopInRegNotForwarded: ReceiverResultReg scratchReg: TempReg].
-	"0 through (NumSendTrampolines - 2) numArgs sends have the arg count implciti in the trampoline.
+	(self annotationIsForUncheckedEntryPoint: annotation) ifTrue: [
+		objectRepresentation
+			genEnsureOopInRegNotForwarded: ReceiverResultReg
+			scratchReg: TempReg ].
+	"0 through (NumSendTrampolines - 2) numArgs sends have the arg count implicit in the trampoline.
 	 The last send trampoline (NumSendTrampolines - 1) passes numArgs in SendNumArgsReg."
-	numArgs >= (NumSendTrampolines - 1) ifTrue:
-		[self MoveCq: numArgs R: SendNumArgsReg].
-	(BytecodeSetHasDirectedSuperSend
-	 and: [annotation
-			between: IsDirectedSuperSend
-			and: IsDirectedSuperBindingSend]) ifTrue:
-		[self genMoveConstant: tempOop R: TempReg].
-	self genLoadInlineCacheWithSelector: selectorIndex.
-	(self Call: (sendTable at: (numArgs min: NumSendTrampolines - 1))) annotation: annotation.
+	numArgs >= (NumSendTrampolines - 1) ifTrue: [
+		self MoveCq: numArgs R: SendNumArgsReg ].
+	(BytecodeSetHasDirectedSuperSend and: [
+		 annotation
+			 between: IsDirectedSuperSend
+			 and: IsDirectedSuperBindingSend ]) ifTrue: [
+		self genMoveConstant: tempOop R: TempReg ].
+	self genMoveConstant: picTable R: ClassReg.
+	(self Call: (sendTable at: (numArgs min: NumSendTrampolines - 1)))
+		annotation: annotation.
 	self voidReceiverOptStatus.
-	^self ssPushRegister: ReceiverResultReg
+	^ self ssPushRegister: ReceiverResultReg
 ]
 
 { #category : 'initialization' }
@@ -2483,10 +2495,6 @@ StackToRegisterMappingCogit >> genSendTrampolineFor: aRoutine numArgs: numArgs c
 	startAddress := methodZoneBase.
 	self zeroOpcodeIndex.
 	backEnd genPushRegisterArgsForNumArgs: numArgs scratchReg: SendNumArgsReg.
-	objectRepresentation selectorIndexDereferenceRoutine ifNotNil: [:routine| 
-		backEnd hasLinkRegister ifTrue: [self PushR: LinkReg].
-		self Call: routine.
-		backEnd hasLinkRegister ifTrue: [self PopR: LinkReg]. ].
 	self genTrampolineFor: aRoutine
 		called: aString
 		numArgs: 4
