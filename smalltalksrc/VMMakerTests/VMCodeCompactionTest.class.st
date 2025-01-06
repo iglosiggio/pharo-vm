@@ -279,141 +279,177 @@ VMCodeCompactionTest >> testCompactingShouldRelocateMonomorphicCallsite [
 
 	| firstMethod callerMethodOop calleeCogMethod selector callerCogMethod calleeMethodOop |
 	"Create a method that will be collected and force compaction of all the next ones"
-	firstMethod := self jitMethod: (self findMethod: #methodToCompile1) selector: memory trueObject.
+	firstMethod := self
+		               jitMethod: (self findMethod: #methodToCompile1)
+		               selector: memory trueObject.
 	firstMethod cmUsageCount: 0.
-	
+
 	"Method that will be linked to"
-	calleeCogMethod := self jitMethod: (self findMethod: #methodThatCallPrimitive1:) selector: memory falseObject.
+	calleeCogMethod := self
+		                   jitMethod:
+		                   (self findMethod: #methodThatCallPrimitive1:)
+		                   selector: memory falseObject.
 	calleeCogMethod cmUsageCount: 4.
 	calleeMethodOop := calleeCogMethod methodObject.
 
 	selector := memory falseObject.
-	callerCogMethod := self jitMethod: (self findMethod: #methodWithSend) selector: selector.
+	callerCogMethod := self
+		                   jitMethod: (self findMethod: #methodWithSend)
+		                   selector: selector.
 	callerCogMethod cmUsageCount: 4.
 	callerMethodOop := callerCogMethod methodObject.
 
 	"Fill the code zone with more methods to force compaction"
 	self fillCodeZone.
-	
+
 	"Setup the frame to do the patch"
 	"Push receiver then send, to finally stop at the trampoline and patch the call-site"
 	self createFramefulCallFrom: callerAddress.
 	self pushAddress: memory falseObject.
-	self runFrom: callerCogMethod address + cogit noCheckEntryOffset until: sendTrampolineAddress.
+	self
+		runFrom: callerCogMethod address + cogit noCheckEntryOffset
+		until: sendTrampolineAddress.
 
-	cogit 
-		linkSendAt: machineSimulator getReturnAddress 
-		in: callerMethodOop 
+	cogit
+		oldLinkSendAt: machineSimulator getReturnAddress
 		to: calleeCogMethod
-		offset: cogit entryOffset 
+		offset: cogit entryOffset
 		receiver: memory falseObject.
-		
+
 	self createBaseFrame.
 	interpreter commenceCogCompiledCodeCompaction.
-	
+
 	"After compaction the send should arrive to the callee entry offset"
 	self createFramefulCallFrom: callerAddress.
 	self pushAddress: memory falseObject.
 
 	self
-		runFrom: (interpreter cogMethodOf: callerMethodOop) address + cogit noCheckEntryOffset
-		until: (interpreter cogMethodOf: calleeMethodOop) asInteger + cogit entryOffset.
+		runFrom: (interpreter cogMethodOf: callerMethodOop) address
+			+ cogit noCheckEntryOffset
+		until: (interpreter cogMethodOf: calleeMethodOop) asInteger
+			+ cogit entryOffset.
 
 	self
 		assert: machineSimulator instructionPointerRegisterValue
-		equals: (interpreter cogMethodOf: calleeMethodOop) asInteger + cogit entryOffset
+		equals: (interpreter cogMethodOf: calleeMethodOop) asInteger
+			+ cogit entryOffset
 ]
 
 { #category : 'tests' }
 VMCodeCompactionTest >> testCompactingShouldRelocatePolymorphicPICCallsite [
-
 	"This method sets up a method A that is linked to a polymorphic PIC linked to B and C.
 	Code compaction is launched so both A, B, C and the PIC are moved and remapped.
 	Re-sending a message should still work and arrive to all cases of the PIC after remap."
 
 	| firstMethod callerMethodOop calleeCogMethod selector callerCogMethod calleeMethodOop calleeCogMethod2 calleeMethodOop2 pic |
 	"Create a method that will be collected and force compaction of all the next ones"
-	firstMethod := self jitMethod: (self findMethod: #methodToCompile1) selector: memory trueObject.
+	firstMethod := self
+		               jitMethod: (self findMethod: #methodToCompile1)
+		               selector: memory trueObject.
 	firstMethod cmUsageCount: 0.
-	
+
 	"Caller that will be linked to the PIC"
 	selector := memory falseObject.
-	callerCogMethod := self jitMethod: (self findMethod: #methodWithSend:) selector: selector.
+	callerCogMethod := self
+		                   jitMethod: (self findMethod: #methodWithSend:)
+		                   selector: selector.
 	callerCogMethod cmUsageCount: 4.
 	callerMethodOop := callerCogMethod methodObject.
-	
+
 	"Methods that will be linked to"
-	calleeCogMethod := self jitMethod: (self findMethod: #methodWithSend) selector: selector.
+	calleeCogMethod := self
+		                   jitMethod: (self findMethod: #methodWithSend)
+		                   selector: selector.
 	calleeCogMethod cmUsageCount: 4.
 	calleeMethodOop := calleeCogMethod methodObject.
-	
-	calleeCogMethod2 := self jitMethod: (self findMethod: #methodWithSend) selector: selector.
+
+	calleeCogMethod2 := self
+		                    jitMethod: (self findMethod: #methodWithSend)
+		                    selector: selector.
 	calleeCogMethod2 cmUsageCount: 4.
 	calleeMethodOop2 := calleeCogMethod2 methodObject.
-	
+
 	"Setup the frame to do the patch"
 	"Push receiver then send, to finally stop at the trampoline and patch the call-site"
 	self createFramefulCallFrom: callerAddress.
-	self prepareStackForSendReceiver: memory falseObject arguments: { memory falseObject }.
-	self runFrom: callerCogMethod address + cogit noCheckEntryOffset until: sendTrampolineAddress.
+	self
+		prepareStackForSendReceiver: memory falseObject
+		arguments: { memory falseObject }.
+	self
+		runFrom: callerCogMethod address + cogit noCheckEntryOffset
+		until: sendTrampolineAddress.
 
 	"First monomorphic link"
-	cogit 
-		linkSendAt: machineSimulator getReturnAddress
-		in: callerMethodOop 
+	cogit
+		oldLinkSendAt: machineSimulator getReturnAddress
 		to: calleeCogMethod
-		offset: cogit entryOffset 
+		offset: cogit entryOffset
 		receiver: memory falseObject.
 
 	"Then create the PIC and link it"
-	pic := cogit cogPICSelector: selector
-		numArgs: 1
-		Case0Method: calleeCogMethod
-		Case1Method: calleeMethodOop2
-		tag: (cogit objectRepresentation inlineCacheTagForInstance: (memory integerObjectOf: 7))
-		isMNUCase: false.
+	pic := cogit
+		       cogPICSelector: selector
+		       numArgs: 1
+		       Case0Method: calleeCogMethod
+		       Case1Method: calleeMethodOop2
+		       tag: (cogit objectRepresentation inlineCacheTagForInstance:
+				        (memory integerObjectOf: 7))
+		       isMNUCase: false.
 	pic cmUsageCount: 4.
 	cogit backEnd
 		rewriteCallAt: machineSimulator getReturnAddress
 		target: pic asInteger + cogit entryOffset.
-		
+
 	"Fill the code zone with more methods to force compaction"
 	self fillCodeZone.
-		
+
 	self createBaseFrame.
 	interpreter commenceCogCompiledCodeCompaction.
-	
+
 	"After compaction the send should arrive to the callee entry offset"
-	
+
 	"Check case 1"
 	self createFramefulCallFrom: callerAddress.
-	self prepareStackForSendReceiver: memory falseObject arguments: { memory falseObject }.
 	self
-		runFrom: (interpreter cogMethodOf: callerMethodOop) address + cogit noCheckEntryOffset
-		until: (interpreter cogMethodOf: calleeMethodOop) asInteger + cogit noCheckEntryOffset.
+		prepareStackForSendReceiver: memory falseObject
+		arguments: { memory falseObject }.
+	self
+		runFrom: (interpreter cogMethodOf: callerMethodOop) address
+			+ cogit noCheckEntryOffset
+		until: (interpreter cogMethodOf: calleeMethodOop) asInteger
+			+ cogit noCheckEntryOffset.
 
 	self
 		assert: machineSimulator instructionPointerRegisterValue
-		equals: (interpreter cogMethodOf: calleeMethodOop) asInteger + cogit noCheckEntryOffset.
-	
+		equals: (interpreter cogMethodOf: calleeMethodOop) asInteger
+			+ cogit noCheckEntryOffset.
+
 	"Check case 2"
 	self createFramefulCallFrom: callerAddress.
-	self prepareStackForSendReceiver: memory falseObject arguments: { memory integerObjectOf: 7 }.
 	self
-		runFrom: (interpreter cogMethodOf: callerMethodOop) address + cogit noCheckEntryOffset
-		until: (interpreter cogMethodOf: calleeMethodOop2) asInteger + cogit noCheckEntryOffset.
+		prepareStackForSendReceiver: memory falseObject
+		arguments: { (memory integerObjectOf: 7) }.
+	self
+		runFrom: (interpreter cogMethodOf: callerMethodOop) address
+			+ cogit noCheckEntryOffset
+		until: (interpreter cogMethodOf: calleeMethodOop2) asInteger
+			+ cogit noCheckEntryOffset.
 
 	self
 		assert: machineSimulator instructionPointerRegisterValue
-		equals: (interpreter cogMethodOf: calleeMethodOop2) asInteger + cogit noCheckEntryOffset.
-	
+		equals: (interpreter cogMethodOf: calleeMethodOop2) asInteger
+			+ cogit noCheckEntryOffset.
+
 	"Check PIC MISS trampoline"
 	self createFramefulCallFrom: callerAddress.
-	
-	self prepareStackForSendReceiver: memory falseObject arguments: { memory characterObjectOf: 7 }.
-	
+
 	self
-		runFrom: (interpreter cogMethodOf: callerMethodOop) address + cogit noCheckEntryOffset
+		prepareStackForSendReceiver: memory falseObject
+		arguments: { (memory characterObjectOf: 7) }.
+
+	self
+		runFrom: (interpreter cogMethodOf: callerMethodOop) address
+			+ cogit noCheckEntryOffset
 		until: cogit ceCPICMissTrampoline.
 
 	self
@@ -423,7 +459,6 @@ VMCodeCompactionTest >> testCompactingShouldRelocatePolymorphicPICCallsite [
 
 { #category : 'tests' }
 VMCodeCompactionTest >> testCompactingShouldRelocatePolymorphicPICInterpreterAbortCallsite [
-
 	"This method sets up a method A that is linked to a polymorphic PIC linked to B and C.
 	Code compaction is launched so both A, B, C and the PIC are moved and remapped.
 	Re-sending a message should still work and arrive to all cases of the PIC after remap."
@@ -467,8 +502,7 @@ VMCodeCompactionTest >> testCompactingShouldRelocatePolymorphicPICInterpreterAbo
 
 	"First monomorphic link"
 	cogit
-		linkSendAt: machineSimulator getReturnAddress
-		in: callerMethodOop
+		oldLinkSendAt: machineSimulator getReturnAddress
 		to: calleeCogMethod
 		offset: cogit entryOffset
 		receiver: memory falseObject.
@@ -513,71 +547,86 @@ VMCodeCompactionTest >> testCompactingShouldRelocatePolymorphicPICInterpreterAbo
 
 { #category : 'tests' }
 VMCodeCompactionTest >> testCompactingShouldRelocatePolymorphicPICMNUAbortCallsite [
-
 	"This method sets up a method A that is linked to a polymorphic PIC linked to B and C.
 	Code compaction is launched so both A, B, C and the PIC are moved and remapped.
 	Re-sending a message should still work and arrive to all cases of the PIC after remap."
 
 	| firstMethod callerMethodOop calleeCogMethod selector callerCogMethod calleeMethodOop calleeCogMethod2 calleeMethodOop2 pic |
 	"Create a method that will be collected and force compaction of all the next ones"
-	firstMethod := self jitMethod: (self findMethod: #methodToCompile1) selector: memory trueObject.
+	firstMethod := self
+		               jitMethod: (self findMethod: #methodToCompile1)
+		               selector: memory trueObject.
 	firstMethod cmUsageCount: 0.
-	
+
 	"Caller that will be linked to the PIC"
 	selector := memory falseObject.
-	callerCogMethod := self jitMethod: (self findMethod: #methodWithSend:) selector: selector.
+	callerCogMethod := self
+		                   jitMethod: (self findMethod: #methodWithSend:)
+		                   selector: selector.
 	callerCogMethod cmUsageCount: 4.
 	callerMethodOop := callerCogMethod methodObject.
-	
+
 	"Methods that will be linked to"
-	calleeCogMethod := self jitMethod: (self findMethod: #methodWithSend) selector: selector.
+	calleeCogMethod := self
+		                   jitMethod: (self findMethod: #methodWithSend)
+		                   selector: selector.
 	calleeCogMethod cmUsageCount: 4.
 	calleeMethodOop := calleeCogMethod methodObject.
-	
-	calleeCogMethod2 := self jitMethod: (self findMethod: #methodWithSend) selector: selector.
+
+	calleeCogMethod2 := self
+		                    jitMethod: (self findMethod: #methodWithSend)
+		                    selector: selector.
 	calleeCogMethod2 cmUsageCount: 4.
 	calleeMethodOop2 := calleeCogMethod2 methodObject.
-	
+
 	"Setup the frame to do the patch"
 	"Push receiver then send, to finally stop at the trampoline and patch the call-site"
 	self createFramefulCallFrom: callerAddress.
-	self prepareStackForSendReceiver: memory falseObject arguments: { memory falseObject }.
-	self runFrom: callerCogMethod address + cogit noCheckEntryOffset until: sendTrampolineAddress.
+	self
+		prepareStackForSendReceiver: memory falseObject
+		arguments: { memory falseObject }.
+	self
+		runFrom: callerCogMethod address + cogit noCheckEntryOffset
+		until: sendTrampolineAddress.
 
 	"First monomorphic link"
-	cogit 
-		linkSendAt: machineSimulator getReturnAddress
-		in: callerMethodOop 
+	cogit
+		oldLinkSendAt: machineSimulator getReturnAddress
 		to: calleeCogMethod
-		offset: cogit entryOffset 
+		offset: cogit entryOffset
 		receiver: memory falseObject.
 
 	"Then create the PIC and link it"
 	interpreter setBreakSelectorLength: memory minSmallInteger.
-	pic := cogit cogPICSelector: selector
-		numArgs: 1
-		Case0Method: calleeCogMethod
-		Case1Method: calleeMethodOop2
-		tag: (cogit objectRepresentation inlineCacheTagForInstance: (memory integerObjectOf: 7))
-		isMNUCase: true.
+	pic := cogit
+		       cogPICSelector: selector
+		       numArgs: 1
+		       Case0Method: calleeCogMethod
+		       Case1Method: calleeMethodOop2
+		       tag: (cogit objectRepresentation inlineCacheTagForInstance:
+				        (memory integerObjectOf: 7))
+		       isMNUCase: true.
 	pic cmUsageCount: 4.
 	cogit backEnd
 		rewriteCallAt: machineSimulator getReturnAddress
 		target: pic asInteger + cogit entryOffset.
-		
+
 	"Fill the code zone with more methods to force compaction"
 	self fillCodeZone.
-		
+
 	self createBaseFrame.
 	interpreter commenceCogCompiledCodeCompaction.
-	
+
 	"After compaction the send should arrive to the callee entry offset"
-	
+
 	"Check case 2"
 	self createFramefulCallFrom: callerAddress.
-	self prepareStackForSendReceiver: memory falseObject arguments: { memory integerObjectOf: 7 }.
 	self
-		runFrom: (interpreter cogMethodOf: callerMethodOop) address + cogit noCheckEntryOffset
+		prepareStackForSendReceiver: memory falseObject
+		arguments: { (memory integerObjectOf: 7) }.
+	self
+		runFrom: (interpreter cogMethodOf: callerMethodOop) address
+			+ cogit noCheckEntryOffset
 		until: cogit cePICAbortTrampoline.
 
 	self

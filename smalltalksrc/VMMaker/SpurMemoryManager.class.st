@@ -1921,27 +1921,31 @@ SpurMemoryManager >> allocateClassTable [
 ]
 
 { #category : 'allocation' }
-SpurMemoryManager >> allocateICTable: selectorOop [
+SpurMemoryManager >> allocateICTable: selectorOop withUnlinkedHandler: unlinkedTrampoline [
 
 	<api>
-	| result |
+	| tableSlotCount result |
 	self assert: (self addressCouldBeOop: selectorOop).
 
+	tableSlotCount := 5.
+
 	result := self
-		          allocateSlots: 4
-		          format: self arrayFormat
-		          classIndex: ClassArrayCompactIndex
+		          allocateSlots: tableSlotCount
+		          format: (self byteFormatForNumBytes: tableSlotCount * self bytesPerOop)
+		          classIndex: ClassByteArrayCompactIndex
 		          isPinned: false
 		          isOldSpace: true.
 	result ifNotNil: [
 		"Selector"
 		self storePointer: 0 ofObject: result withValue: selectorOop.
+		"Current handler"
+		self storePointer: 1 ofObject: result withValue: unlinkedTrampoline.
 		"Cache tag 0"
-		self storePointer: 1 ofObject: result withValue: (self integerObjectOf: 0).
-		"Cache operand 0"
 		self storePointer: 2 ofObject: result withValue: (self integerObjectOf: 0).
+		"Cache operand 0"
+		self storePointer: 3 ofObject: result withValue: (self integerObjectOf: 0).
 		"Cache value 0"
-		self storePointer: 3 ofObject: result withValue: (self integerObjectOf: 0). ].
+		self storePointer: 4 ofObject: result withValue: (self integerObjectOf: 0). ].
 	^ result
 ]
 

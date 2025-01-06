@@ -18,7 +18,6 @@ VMSimpleStackBasedCogitMonomorphicPICTest >> testCalculateClosePICSize [
 
 { #category : 'tests - PIC' }
 VMSimpleStackBasedCogitMonomorphicPICTest >> testLinkCallDuringSendInTrampolineReplacesTheCallTargetWithTheCogMethodAddress [
-
 	"This is for the monomorphic case"
 
 	| sendingMethod targetCog selector executedTheTrampoline |
@@ -39,7 +38,7 @@ VMSimpleStackBasedCogitMonomorphicPICTest >> testLinkCallDuringSendInTrampolineR
 		                 literals: { selector };
 		                 buildMethod.
 	cogit methodObj: sendingMethod.
-	sendAddress := self compile: [ 
+	sendAddress := self compile: [
 		               cogit genSendLiteralSelector0ArgsBytecode ].
 
 	"Push receiver then send"
@@ -47,8 +46,7 @@ VMSimpleStackBasedCogitMonomorphicPICTest >> testLinkCallDuringSendInTrampolineR
 	self runFrom: sendAddress until: sendTrampolineAddress.
 
 	cogit
-		linkSendAt: machineSimulator getReturnAddress
-		in: sendingMethod
+		linkSendAt: machineSimulator classRegisterValue
 		to: targetCog
 		offset: cogit entryOffset
 		receiver: memory falseObject.
@@ -69,7 +67,7 @@ VMSimpleStackBasedCogitMonomorphicPICTest >> testLinkCallDuringSendInTrampolineR
 { #category : 'tests - PIC' }
 VMSimpleStackBasedCogitMonomorphicPICTest >> testObtainInlineCacheFromLinkedCall [
 
-	| sendingMethod targetCog selector executedTheTrampoline |
+	| sendingMethod targetCog selector |
 	self setUpCogMethodEntry.
 	sendTrampolineAddress := self compile: [ cogit RetN: 0 ].
 	cogit ordinarySendTrampolineAt: 0 put: sendTrampolineAddress. "num args"
@@ -86,7 +84,7 @@ VMSimpleStackBasedCogitMonomorphicPICTest >> testObtainInlineCacheFromLinkedCall
 		                 literals: { selector };
 		                 buildMethod.
 	cogit methodObj: sendingMethod.
-	sendAddress := self compile: [ 
+	sendAddress := self compile: [
 		               cogit genSendLiteralSelector0ArgsBytecode ].
 
 	"Push receiver then send"
@@ -94,12 +92,11 @@ VMSimpleStackBasedCogitMonomorphicPICTest >> testObtainInlineCacheFromLinkedCall
 	self runFrom: sendAddress until: sendTrampolineAddress.
 
 	cogit
-		linkSendAt: machineSimulator getReturnAddress
-		in: sendingMethod
+		linkSendAt: machineSimulator classRegisterValue
 		to: targetCog
 		offset: cogit entryOffset
 		receiver: memory falseObject.
-
+"FIXME: This test does not make sense, we are hand-patching the IC table and then checking that the patch patched the table"
 	self
 		assert:
 		(cogit backend inlineCacheTagAt: machineSimulator getReturnAddress)

@@ -3790,7 +3790,7 @@ Cogit >> ceBaseFrameReturnTrampoline: anInteger [
 ]
 
 { #category : 'in-line cacheing' }
-Cogit >> ceCPICMiss: cPIC receiver: receiver [
+Cogit >> ceCPICMiss: cPIC receiver: receiver icTable: icTable [
 	"Code entry closed PIC miss.  A send has fallen
 	 through a closed (finite) polymorphic inline cache.
 	 Either extend it or patch the send site to an open PIC.
@@ -3807,7 +3807,8 @@ Cogit >> ceCPICMiss: cPIC receiver: receiver [
 		cPIC isInteger ifTrue: [
 			^ self
 				  ceCPICMiss: (self cogMethodSurrogateAt: cPIC)
-				  receiver: receiver ] ].
+				  receiver: receiver
+				  icTable: icTable ] ].
 
 	(objectMemory isOopForwarded: receiver) ifTrue: [
 		^ coInterpreter ceSendFromInLineCacheMiss: cPIC ].
@@ -3815,13 +3816,15 @@ Cogit >> ceCPICMiss: cPIC receiver: receiver [
 	callerReturnAddress := coInterpreter stackTop.
 	self deny: (backEnd inlineCacheTagAt: callerReturnAddress)
 		= self isMNUPicAbortDiscriminatorValue.
+	self assert: (objectMemory isNotForwarded: icTable).
 
 	"Transition to megamorphic if the PIC is full"
 	MaxCPICCases <= cPIC cPICNumCases ifTrue: [
 		self
 			patchToMegamorphicICFor: cPIC selector
 			numArgs: cPIC cmNumArgs
-			receiver: receiver.
+			receiver: receiver
+			icTable: icTable.
 		^ coInterpreter ceSendFromInLineCacheMiss: cPIC ].
 
 	self
@@ -3843,7 +3846,8 @@ Cogit >> ceCPICMiss: cPIC receiver: receiver [
 		self
 			patchToMegamorphicICFor: cPIC selector
 			numArgs: cPIC cmNumArgs
-			receiver: receiver.
+			receiver: receiver
+			icTable: icTable.
 		^ coInterpreter ceSendFromInLineCacheMiss: cPIC ].
 
 	"      method | errorSelector             | situation
@@ -4032,7 +4036,7 @@ Cogit >> ceReturnToInterpreterTrampoline: anInteger [
 ]
 
 { #category : 'in-line cacheing' }
-Cogit >> ceSICMiss: receiver [
+Cogit >> ceSICMiss: receiver icTable: icTable [
 	"An in-line cache check in a method has failed.  The failing entry check has jumped
 	 to the ceMethodAbort abort call at the start of the method which has called this routine.
 	 If possible allocate a closed PIC for the current and existing classes.
@@ -4049,6 +4053,8 @@ Cogit >> ceSICMiss: receiver [
 	<story: #pic>
 	<var: #inlineCache type: #'CogMethod *'>
 	| inlineCache missedTargetReturnAddress callerReturnAddress missedTargetCogMethod newTargetMethodOrNil errorSelectorOrNil cacheTag linkingSucceeded |
+	self assert: (objectMemory isNotForwarded: icTable).
+
 	missedTargetReturnAddress := coInterpreter popStack asUnsignedInteger.
 	"Whether we can relink to a PIC or not we need to pop off the inner return and identify the target method."
 	missedTargetCogMethod := self
@@ -4074,7 +4080,8 @@ Cogit >> ceSICMiss: receiver [
 		self
 			patchToMegamorphicICFor: missedTargetCogMethod selector
 			numArgs: missedTargetCogMethod cmNumArgs
-			receiver: receiver.
+			receiver: receiver
+			icTable: icTable.
 		^ coInterpreter ceSendFromInLineCacheMiss: missedTargetCogMethod ].
 
 	self
@@ -4097,68 +4104,50 @@ Cogit >> ceSICMiss: receiver [
 		self
 			patchToMegamorphicICFor: missedTargetCogMethod selector
 			numArgs: missedTargetCogMethod cmNumArgs
-			receiver: receiver.
+			receiver: receiver
+			icTable: icTable.
 		^ coInterpreter ceSendFromInLineCacheMiss: missedTargetCogMethod ].
 
 	"If early promotion is allowed check if anyone else saw this selector turn megamorphic"
 	self allowEarlyPromotionToMegamorphicIC
 		ifFalse: [ inlineCache := nil ]
 		ifTrue: [
-			| extent |
 			inlineCache := methodZone openPICWithSelector:
 				               missedTargetCogMethod selector.
-			linkingSucceeded := inlineCache isNotNil.
-			inlineCache ifNotNil: [
-				self
-					enableCodeZoneWriteDuring: [ "Link the sendsite.
-					Because we are on a megamorphic sendsite put the selector as tag for the
-					benefit of the cacheTag assert check in checkIfValidOopRef:pc:cogMethod:
-					et al."
-						extent := backEnd
-							          rewriteInlineCacheAt: callerReturnAddress
-							          tag: (self
-									           inlineCacheValueForSelector:
-									           missedTargetCogMethod selector
-									           in: coInterpreter mframeHomeMethodExport
-									           at: callerReturnAddress)
-							          target: inlineCache asInteger + cmEntryOffset ]
-					flushingCacheWith: [
-						self
-							flushICacheFrom: callerReturnAddress asUnsignedInteger - extent
-							to: callerReturnAddress asUnsignedInteger ] ] ].
+			linkingSucceeded := inlineCache isNotNil ].
 	inlineCache ifNil: [
-			| extent |
-			"      method | errorSelector             | situation
+		"      method | errorSelector             | situation
 			 -------------+---------------------------+---------------------------------------------------------
 			  foundMethod | SelectorDoesNotUnderstand | Didn't find the method but found the DNU implementation
 			  foundMethod | nil                       | Found the method"
-			self
-				enableCodeZoneWriteDuring: [
-					inlineCache := self
-						               cogPICSelector: missedTargetCogMethod selector
-						               numArgs: missedTargetCogMethod cmNumArgs
-						               Case0Method: missedTargetCogMethod
-						               Case1Method: newTargetMethodOrNil
-						               tag: cacheTag
-						               isMNUCase:
-						               errorSelectorOrNil = SelectorDoesNotUnderstand.
-					linkingSucceeded := (inlineCache asInteger
-						                     between: MaxNegativeErrorCode
-						                     and: -1) not.
-					linkingSucceeded ifTrue: [ "Link the send site to the pic."
-						extent := backEnd
-							          rewriteCallAt: callerReturnAddress
-							          target: inlineCache asInteger + cmEntryOffset ] ]
-				flushingCacheWith: [
-					linkingSucceeded ifTrue: [
-						self
-							flushICacheFrom: inlineCache asUnsignedInteger
-							to: inlineCache asUnsignedInteger + closedPICSize.
-						self
-							flushICacheFrom: callerReturnAddress asUnsignedInteger - extent
-							to: callerReturnAddress asUnsignedInteger ] ] ].
+		self
+			enableCodeZoneWriteDuring: [
+				inlineCache := self
+					               cogPICSelector: missedTargetCogMethod selector
+					               numArgs: missedTargetCogMethod cmNumArgs
+					               Case0Method: missedTargetCogMethod
+					               Case1Method: newTargetMethodOrNil
+					               tag: cacheTag
+					               isMNUCase:
+					               errorSelectorOrNil = SelectorDoesNotUnderstand.
+				linkingSucceeded := (inlineCache asInteger
+					                     between: MaxNegativeErrorCode
+					                     and: -1) not ]
+			flushingCacheWith: [
+				linkingSucceeded ifTrue: [
+					self
+						flushICacheFrom: inlineCache asUnsignedInteger
+						to: inlineCache asUnsignedInteger + closedPICSize ] ] ].
 
-	linkingSucceeded ifTrue: [ "Jump back into the pic at its entry in case this is an MNU (newTargetMethodOrNil is nil)"
+	linkingSucceeded ifTrue: [ "
+		The thing below should probably be rewritten as
+		self onICTable: icTable setHandler: inlineCache asInteger + cmEntryOffset"
+		objectMemory
+			storePointer: 1
+			ofObject: icTable
+			withValue: inlineCache asInteger + cmEntryOffset.
+
+		"Jump back into the pic at its entry in case this is an MNU (newTargetMethodOrNil is nil)"
 		coInterpreter
 			executeCogPIC: inlineCache
 			fromLinkedSendWithReceiver: receiver
@@ -4298,7 +4287,7 @@ Cogit >> checkIfValidOopRef: annotation pc: mcpc cogMethod: cogMethod [
 			[coInterpreter print: 'object ref leak in CM '; printHex: cogMethod asInteger; print: ' @ '; printHex: mcpc asInteger; cr.
 			^1]].
 
-	(self isPureSendAnnotation: annotation) ifTrue:
+	(self isSendAnnotation: annotation) ifTrue:
 		[| entryPoint selectorOrCacheTag offset |
 		 entryPoint := backEnd callTargetFromReturnAddress: mcpc asInteger.
 		 entryPoint <= methodZoneBase
@@ -4339,7 +4328,7 @@ Cogit >> checkIfValidOopRefAndTarget: annotation pc: mcpc cogMethod: cogMethod [
 			[(self asserta: (self cCoerceSimple: cogMethod to: #'CogMethod *') cmRefersToYoung) ifFalse:
 				[^2]]].
 
-	(self isPureSendAnnotation: annotation) ifTrue:
+	(self isSendAnnotation: annotation) ifTrue:
 		[(self asserta: (self cCoerceSimple: cogMethod to: #'CogMethod *') cmType = CMMethod) ifFalse:
 			[^3].
 		 self entryCacheTagAndCouldBeObjectAt: mcpc annotation: annotation into:
@@ -5273,7 +5262,8 @@ Cogit >> compileCPICEntry [
 	<returnTypeC: #'AbstractInstruction *'>
 	"Compile the cache tag computation and the first comparison.  Answer the address of that comparison."
 	entry := objectRepresentation genGetInlineCacheClassTagFrom: ReceiverResultReg into: TempReg forEntry: true.
-	self CmpR: ClassReg R: TempReg.
+	objectMemory genLoadSlot: 2 sourceReg: ClassReg destReg: Extra0Reg.
+	self CmpR: Extra0Reg R: TempReg.
 	^self JumpNonZero: 0
 ]
 
@@ -5473,7 +5463,8 @@ Cogit >> compileEntry [
 	 can distinguish normal and super sends (super sends bind to the noCheckEntry)."
 
 	entry := objectRepresentation genGetInlineCacheClassTagFrom: ReceiverResultReg into: TempReg forEntry: true.
-	self CmpR: ClassReg R: TempReg.
+	objectRepresentation genLoadSlot: 2 sourceReg: ClassReg destReg: Extra0Reg.
+	self CmpR: Extra0Reg R: TempReg.
 	self JumpNonZero: sendMiss.
 	noCheckEntry := self Label.
 	self compileSendTrace ifTrue:
@@ -5621,7 +5612,7 @@ Cogit >> compilePolymorphicICPrototype [
 		self JumpLongZero: self cPICPrototypeCaseOffset + 16rCA5E10 + (h * 16).
 		h = 1 ifTrue:
 			[endCPICCase1 := self Label]].
-	self MoveCw: methodLabel address R: ClassReg.
+	self MoveCw: methodLabel address R: Extra0Reg.
 	self JumpLong: (self cPICMissTrampolineFor: numArgs).	"Will get rewritten to appropriate arity when configuring."
 	cPICEndOfCodeLabel := self Label.
 	literalsManager dumpLiterals: false.
@@ -7190,11 +7181,11 @@ Cogit >> genMethodAbortTrampoline [
 		pushLinkReg: false "The LinkReg has already been set above."
 		resultReg: NoReg.
 	jumpSICMiss jmpTarget: self Label.
-	^self genTrampolineFor: #ceSICMiss:
+	^self genTrampolineFor: #ceSICMiss:icTable:
 		called: 'ceMethodAbort'
-		numArgs: 1
+		numArgs: 2
 		arg: ReceiverResultReg
-		arg: nil
+		arg: ClassReg
 		arg: nil
 		arg: nil
 		regsToSave: self emptyRegisterMask
@@ -8439,7 +8430,7 @@ Cogit >> incrementUsageOfTargetIfLinkedSend: annotation mcpc: mcpc ignored: supe
 	<var: #mcpc type: #'char *'>
 	| entryPoint |
 
-	(self isPureSendAnnotation: annotation) ifTrue: [
+	(self isSendAnnotation: annotation) ifTrue: [
 		entryPoint := backEnd callTargetFromReturnAddress: mcpc asInteger.
 		entryPoint > methodZoneBase ifTrue: "It's a linked send."
 			[self targetMethodAndSendTableFor: entryPoint annotation: annotation into:
@@ -8792,12 +8783,6 @@ Cogit >> isPrimitiveRunningInSmalltalkStack: aSelector [
 ]
 
 { #category : 'method map' }
-Cogit >> isPureSendAnnotation: annotation [
-	<inline: true>
-	^annotation >= IsSendCall
-]
-
-{ #category : 'method map' }
 Cogit >> isSendAnnotation: annotation [
 	<inline: true>
 	^annotation >= IsSendCall
@@ -8864,29 +8849,18 @@ Cogit >> latestContinuationPCFor: descriptor at: pc exts: nExts in: aMethodObj [
 ]
 
 { #category : 'in-line cacheing' }
-Cogit >> linkSendAt: callSiteReturnAddress in: sendingMethod to: targetMethod offset: theEntryOffset receiver: receiver [
+Cogit >> linkSendAt: icTable to: targetMethod offset: theEntryOffset receiver: receiver [
 	<api>
-	<var: #sendingMethod type: #'CogMethod *'>
 	<var: #targetMethod type: #'CogMethod *'>
-	| inlineCacheTag address extent |
+	| inlineCacheTag address |
 	self assert: (theEntryOffset = cmEntryOffset or: [theEntryOffset = cmNoCheckEntryOffset]).
-	self assert: (callSiteReturnAddress between: methodZoneBase and: methodZone freeStart).
 	inlineCacheTag := theEntryOffset = cmNoCheckEntryOffset
 						ifTrue: [targetMethod selector "i.e. no change"]
 						ifFalse: [objectRepresentation inlineCacheTagForInstance: receiver].
 	address := targetMethod asInteger + theEntryOffset.
-
-	self 
-		enableCodeZoneWriteDuring: [ 	
-			extent := backEnd
-						rewriteInlineCacheAt: callSiteReturnAddress
-						tag: inlineCacheTag
-						target: address.
-		]
-		flushingCacheWith: [ 	
-			self
-				flushICacheFrom: callSiteReturnAddress asUnsignedInteger  - extent
-				to: callSiteReturnAddress asUnsignedInteger ].
+	objectMemory storePointer: 1 ofObject: icTable withValue: address.
+	objectMemory storePointer: 2 ofObject: icTable withValue: inlineCacheTag.
+	objectMemory storePointer: 4 ofObject: icTable withValue: address.
 ]
 
 { #category : 'analysis' }
@@ -9705,7 +9679,7 @@ Cogit >> markLiterals: annotation pc: mcpc method: cogMethod [
 				atpc: mcpc asUnsignedInteger) ifTrue:
 			[codeModified := true]].
 
-	(self isPureSendAnnotation: annotation) ifTrue:
+	(self isSendAnnotation: annotation) ifTrue:
 		[self entryCacheTagAndCouldBeObjectAt: mcpc annotation: annotation into:
 			[:entryPoint :cacheTag :tagCouldBeObj |
 			 tagCouldBeObj ifTrue:
@@ -9731,7 +9705,7 @@ Cogit >> markLiteralsAndUnlinkIfUnmarkedSend: annotation pc: mcpc method: cogMet
 				atpc: mcpc asUnsignedInteger) ifTrue:
 			[codeModified := true]].
 
-	(self isPureSendAnnotation: annotation) ifTrue:
+	(self isSendAnnotation: annotation) ifTrue:
 		[self entryCacheTagAndCouldBeObjectAt: mcpc annotation: annotation into:
 			[:entryPoint :cacheTag :tagCouldBeObj | | cacheTagMarked |
 			 cacheTagMarked := tagCouldBeObj and: [objectRepresentation cacheTagIsMarked: cacheTag].
@@ -9800,7 +9774,7 @@ Cogit >> markYoungObjects: annotation pc: mcpc method: cogMethod [
 		[literal := literalsManager fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger using: backEnd.
 		 objectRepresentation markAndTraceLiteralIfYoung: literal].
 
-	(self isPureSendAnnotation: annotation) ifTrue:
+	(self isSendAnnotation: annotation) ifTrue:
 		[self entryCacheTagAndCouldBeObjectAt: mcpc annotation: annotation into:
 			[:entryPoint :cacheTag :tagCouldBeObj |
 			 tagCouldBeObj ifTrue:
@@ -10353,7 +10327,7 @@ Cogit >> patchFixupTargetIfNeeded: fixup nextOpcodeIndex: nextOpcodeIndex [
 ]
 
 { #category : 'in-line cacheing' }
-Cogit >> patchToMegamorphicICFor: selector numArgs: numArgs receiver: receiver [
+Cogit >> patchToMegamorphicICFor: selector numArgs: numArgs receiver: receiver icTable: icTable [
 	"Code entry PIC full or miss to an instance of a young class or to a young target method.
 	Attempt to patch the send site to an megamorphic PIC.
 	Answer if the attempt succeeded; in fact it will
@@ -10365,44 +10339,41 @@ Cogit >> patchToMegamorphicICFor: selector numArgs: numArgs receiver: receiver [
 	 sp=>	sender return address"
 
 	<api>
-	| oPIC outerReturn extent |
 	<var: #oPIC type: #'CogMethod *'>
+	| oPIC outerReturn |
 	outerReturn := coInterpreter stackTop.
 
 	oPIC := methodZone openPICWithSelector: selector.
-	
+
 	"See if an Open PIC is already available."
-	oPIC ifNil:
-		["otherwise attempt to create an Open PIC."
-			self 
-				enableCodeZoneWriteDuring: [oPIC := self cogOpenPICSelector: selector numArgs: numArgs]
-				flushingCacheWith: [ 
-					(oPIC asInteger between: MaxNegativeErrorCode and: -1) 
-						ifFalse: [ self flushICacheFrom: oPIC asUnsignedInteger to: oPIC asUnsignedInteger + openPICSize]]].
+	oPIC ifNil: [ "otherwise attempt to create an Open PIC."
+		self
+			enableCodeZoneWriteDuring: [
+			oPIC := self cogOpenPICSelector: selector numArgs: numArgs ]
+			flushingCacheWith: [
+				(oPIC asInteger between: MaxNegativeErrorCode and: -1) ifFalse: [
+					self
+						flushICacheFrom: oPIC asUnsignedInteger
+						to: oPIC asUnsignedInteger + openPICSize ] ] ].
 
-	(oPIC asInteger between: MaxNegativeErrorCode and: -1) ifTrue:[
-		"For some reason the PIC couldn't be generated, most likely a lack of code memory."
-		oPIC asInteger = InsufficientCodeSpace ifTrue:
-			[coInterpreter callForCogCompiledCodeCompaction].
-		^false].
+	(oPIC asInteger between: MaxNegativeErrorCode and: -1) ifTrue: [ "
+		For some reason the PIC couldn't be generated, most likely a lack of code memory."
+		oPIC asInteger = InsufficientCodeSpace ifTrue: [
+			coInterpreter callForCogCompiledCodeCompaction ].
+		^ false ].
 
-	self 
-		enableCodeZoneWriteDuring: [
-		"Relink the send site to the pic.  Reset the cache tag to the selector, for the
-		 benefit of the cacheTag assert check in checkIfValidOopRef:pc:cogMethod: et al."
-		extent := backEnd
-					rewriteInlineCacheAt: outerReturn
-					tag: (self inlineCacheValueForSelector: selector
-							  in: coInterpreter mframeHomeMethodExport
-							  at: outerReturn)
-					target: oPIC asInteger + cmEntryOffset]
-		flushingCacheWith: [ 
-			self
-				flushICacheFrom: outerReturn asUnsignedInteger - extent to: outerReturn asUnsignedInteger ].
+	"The thing below should probably be rewritten as
+	self onICTable: icTable setHandler: oPIC asInteger + cmEntryOffset"
+	objectMemory
+		storePointer: 1
+		ofObject: icTable
+		withValue: oPIC asInteger + cmEntryOffset.
 
 	"Jump into the oPIC at its entry"
-	coInterpreter executeCogMethod: oPIC fromLinkedSendWithReceiver: receiver.
-	^self unreachable
+	coInterpreter
+		executeCogMethod: oPIC
+		fromLinkedSendWithReceiver: receiver.
+	^ self unreachable
 ]
 
 { #category : 'in-line cacheing' }
@@ -11112,7 +11083,7 @@ Cogit >> relocateIfCallOrMethodReference: annotation mcpc: mcpc delta: refDelta 
 		             ifTrue: [ refDelta ]
 		             ifFalse: [ 0 ].
 
-	(self isPureSendAnnotation: annotation) ifTrue: [
+	(self isSendAnnotation: annotation) ifTrue: [
 		entryPoint := backEnd callTargetFromReturnAddress: mcpc asInteger.
 		entryPoint <= methodZoneBase ifTrue: [ "
 			send is not linked; just relocate"
@@ -11188,7 +11159,7 @@ Cogit >> remapIfObjectRef: annotation pc: mcpc hasYoung: hasYoungPtr [
 			  and: [objectMemory isYoung: mappedLiteral]) ifTrue:
 				[(self cCoerceSimple: hasYoungPtr to: #'sqInt *') at: 0 put: true]]].
 
-	(self isPureSendAnnotation: annotation) ifTrue:
+	(self isSendAnnotation: annotation) ifTrue:
 		[self entryCacheTagAndCouldBeObjectAt: mcpc annotation: annotation into:
 			[:entryPoint :cacheTag :tagCouldBeObj | | mappedCacheTag |
 			 (tagCouldBeObj
@@ -11981,7 +11952,7 @@ Cogit >> unlinkIfFreeOrLinkedSend: annotation pc: mcpc of: theSelector [
 	<var: #mcpc type: #'char *'>
 	| entryPoint |
 
-	(self isPureSendAnnotation: annotation) ifTrue:
+	(self isSendAnnotation: annotation) ifTrue:
 		[entryPoint := backEnd callTargetFromReturnAddress: mcpc asInteger.
 		 entryPoint > methodZoneBase
 			ifTrue: "It's a linked send."
@@ -11999,7 +11970,7 @@ Cogit >> unlinkIfInvalidClassSend: annotation pc: mcpc ignored: superfluity [
 	<var: #mcpc type: #'char *'>
 	| entryPoint |
 
-	(self isPureSendAnnotation: annotation) ifTrue:
+	(self isSendAnnotation: annotation) ifTrue:
 		[entryPoint := backEnd callTargetFromReturnAddress: mcpc asInteger.
 		 entryPoint > methodZoneBase ifTrue: "It's a linked send, but maybe a super send or linked to an OpenPIC, in which case the cache tag will be a selector...."
 			[self targetMethodAndSendTableFor: entryPoint annotation: annotation into:
@@ -12017,7 +11988,7 @@ Cogit >> unlinkIfLinkedSend: annotation pc: mcpc ignored: superfluity [
 	<var: #mcpc type: #'char *'>
 	| entryPoint |
 
-	(self isPureSendAnnotation: annotation) ifTrue:
+	(self isSendAnnotation: annotation) ifTrue:
 		[entryPoint := backEnd callTargetFromReturnAddress: mcpc asInteger.
 		 entryPoint > methodZoneBase
 			ifTrue: "It's a linked send."
@@ -12033,7 +12004,7 @@ Cogit >> unlinkIfLinkedSend: annotation pc: mcpc of: theSelector [
 	<var: #mcpc type: #'char *'>
 	| entryPoint |
 
-	(self isPureSendAnnotation: annotation) ifTrue:
+	(self isSendAnnotation: annotation) ifTrue:
 		[entryPoint := backEnd callTargetFromReturnAddress: mcpc asInteger.
 		 entryPoint > methodZoneBase
 			ifTrue: "It's a linked send."
@@ -12050,7 +12021,7 @@ Cogit >> unlinkIfLinkedSend: annotation pc: mcpc to: theCogMethod [
 	<var: #mcpc type: #'char *'>
 	| entryPoint |
 
-	(self isPureSendAnnotation: annotation) ifTrue:
+	(self isSendAnnotation: annotation) ifTrue:
 		[entryPoint := backEnd callTargetFromReturnAddress: mcpc asInteger.
 		 entryPoint > methodZoneBase
 			ifTrue: "It's a linked send."
@@ -12067,7 +12038,7 @@ Cogit >> unlinkIfLinkedSendToFree: annotation pc: mcpc ignored: superfluity [
 	<var: #mcpc type: #'char *'>
 	| entryPoint |
 
-	(self isPureSendAnnotation: annotation) ifTrue:
+	(self isSendAnnotation: annotation) ifTrue:
 		[entryPoint := backEnd callTargetFromReturnAddress: mcpc asInteger.
 		 entryPoint > methodZoneBase ifTrue: "It's a linked send."
 			[self targetMethodAndSendTableFor: entryPoint annotation: annotation into:

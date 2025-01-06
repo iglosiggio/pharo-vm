@@ -1399,7 +1399,7 @@ CoInterpreter >> ceReturnToInterpreter: anOop [
 ]
 
 { #category : 'trampolines' }
-CoInterpreter >> ceSend: maybeForwardedSelector above: methodClass to: receiver numArgs: numArgs [
+CoInterpreter >> ceSend: maybeForwardedICTable above: methodClass to: receiver numArgs: numArgs [
 	"Entry-point for an unlinked directed super send in a CogMethod.
 	 methodClass is the class above which to start the lookup.
 	 Smalltalk stack looks like:
@@ -1419,7 +1419,7 @@ CoInterpreter >> ceSend: maybeForwardedSelector above: methodClass to: receiver 
 	classTag := objectMemory classTagForClass: classObj.
 
 	self
-		handleUnlinkedSendFor: maybeForwardedSelector
+		handleUnlinkedSendFor: maybeForwardedICTable
 		to: receiver
 		isSuper: true
 		classTag: classTag
@@ -1429,7 +1429,7 @@ CoInterpreter >> ceSend: maybeForwardedSelector above: methodClass to: receiver 
 ]
 
 { #category : 'trampolines' }
-CoInterpreter >> ceSend: selector aboveClassBinding: methodClassBinding to: rcvr numArgs: numArgs [
+CoInterpreter >> ceSend: maybeForwardedICTable aboveClassBinding: methodClassBinding to: rcvr numArgs: numArgs [
 	"Entry-point for an unlinked directed super send in a CogMethod.
 	 methodClassBinding is an association whose value is the class above which to start the lookup.
 	 Smalltalk stack looks like:
@@ -1438,7 +1438,7 @@ CoInterpreter >> ceSend: selector aboveClassBinding: methodClassBinding to: rcvr
 	     head sp -> sender return pc"
 	<api>
 	<option: #BytecodeSetHasDirectedSuperSend>
-	self ceSend: selector
+	self ceSend: maybeForwardedICTable
 		above: (self fetchPointer: ValueIndex
 					ofObject: (objectMemory followMaybeForwarded: methodClassBinding))
 		to: rcvr
@@ -1446,7 +1446,7 @@ CoInterpreter >> ceSend: selector aboveClassBinding: methodClassBinding to: rcvr
 ]
 
 { #category : 'trampolines' }
-CoInterpreter >> ceSend: maybeForwardedSelector super: isSuperSend to: maybeForwardedReceiver numArgs: numArgs [
+CoInterpreter >> ceSend: maybeForwardedICTable super: isSuperSend to: maybeForwardedReceiver numArgs: numArgs [
 	"Entry-point for an unlinked send in a CogMethod.
 	 Smalltalk stack looks like:
                    receiver
@@ -1470,7 +1470,7 @@ CoInterpreter >> ceSend: maybeForwardedSelector super: isSuperSend to: maybeForw
 				classTag := objectMemory fetchClassTagOf: receiver ].
 
 			self
-				handleUnlinkedSendFor: maybeForwardedSelector
+				handleUnlinkedSendFor: maybeForwardedICTable
 				to: receiver
 				isSuper: isSuperSend
 				classTag: classTag
@@ -1487,7 +1487,7 @@ CoInterpreter >> ceSend: maybeForwardedSelector super: isSuperSend to: maybeForw
 			classTag := objectMemory classTagForClass: classObj.
 
 			self
-				handleUnlinkedSendFor: maybeForwardedSelector
+				handleUnlinkedSendFor: maybeForwardedICTable
 				to: maybeForwardedReceiver
 				isSuper: isSuperSend
 				classTag: classTag
@@ -2861,7 +2861,7 @@ CoInterpreter >> handleMNU: selectorIndex InMachineCodeTo: rcvr classForMessage:
 ]
 
 { #category : 'trampolines' }
-CoInterpreter >> handleUnlinkedSendFor: maybeForwardedSelector to: receiver isSuper: isSuper classTag: classTag numArgs: numArgs classObjGetter: classObjGetter [
+CoInterpreter >> handleUnlinkedSendFor: maybeForwardedICTable to: receiver isSuper: isSuper classTag: classTag numArgs: numArgs classObjGetter: classObjGetter [
 	"Entry-point for unlinked sends in a CogMethod. Inlined into every related
 	 trampoline (regular sends, super sends, directed super sends).
 
@@ -2902,7 +2902,7 @@ CoInterpreter >> handleUnlinkedSendFor: maybeForwardedSelector to: receiver isSu
 	self assert: (objectMemory isNotForwarded: receiver).
 	argumentCount := numArgs.
 
-	icTable := maybeForwardedSelector.
+	icTable := maybeForwardedICTable.
 	(objectMemory isOopForwarded: icTable) ifTrue: [
 		icTable := objectMemory followForwarded: icTable ].
 
@@ -2932,18 +2932,17 @@ CoInterpreter >> handleUnlinkedSendFor: maybeForwardedSelector to: receiver isSu
 					           numArgs: argumentCount) asUnsignedInteger.
 				mnuPIC > cogit minCogMethodAddress ifTrue: [
 					cogit
-						linkSendAt: (stackPages longAt: stackPointer)
-						in: (self mframeHomeMethod: framePointer)
+						linkSendAt: icTable
 						to: mnuPIC
-							offset: (isSuper = 0
+						offset: (isSuper = 0
 								 ifTrue: [ cogit entryOffset ]
 								 ifFalse: [ cogit noCheckEntryOffset ])
 						receiver: receiver ] ].
-				self
-					handleMNU: errSelIdx
-					InMachineCodeTo: receiver
-					classForMessage: classObj.
-				self unreachable ] ].
+			self
+				handleMNU: errSelIdx
+				InMachineCodeTo: receiver
+				classForMessage: classObj.
+			self unreachable ] ].
 
 	"Method has been found, either in the cache or in by doing a lookup.
 	It's not a MNU, it has been handled before."
@@ -2963,8 +2962,7 @@ CoInterpreter >> handleUnlinkedSendFor: maybeForwardedSelector to: receiver isSu
 	cogMethod selector = selector
 		ifTrue: [
 			cogit
-				linkSendAt: (stackPages longAt: stackPointer)
-				in: (self mframeHomeMethod: framePointer)
+				linkSendAt: icTable
 				to: cogMethod
 				offset: (isSuper = 0
 						 ifTrue: [ cogit entryOffset ]
@@ -2976,7 +2974,8 @@ CoInterpreter >> handleUnlinkedSendFor: maybeForwardedSelector to: receiver isSu
 				cogit
 					patchToMegamorphicICFor: selector
 					numArgs: numArgs
-					receiver: receiver ] ].
+					receiver: receiver
+					icTable: icTable ] ].
 	instructionPointer := self popStack.
 	self executeNewMethod.
 	self unreachable

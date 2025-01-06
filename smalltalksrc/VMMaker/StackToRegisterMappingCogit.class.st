@@ -2007,7 +2007,10 @@ StackToRegisterMappingCogit >> genMarshalledSend: selectorIndex numArgs: numArgs
 		               ifTrue: [
 		               coInterpreter specialSelector: -1 - selectorIndex ]
 		               ifFalse: [ self getLiteral: selectorIndex ].
-	picTable := objectMemory allocateICTable: selectorOop.
+	picTable := objectMemory
+		            allocateICTable: selectorOop
+		            withUnlinkedHandler:
+		            (sendTable at: (numArgs min: NumSendTrampolines - 1)).
 	picTable ifNil: [ ^ InsufficientCodeSpace ].
 
 	annotation := self annotationForSendTable: sendTable.
@@ -2020,14 +2023,22 @@ StackToRegisterMappingCogit >> genMarshalledSend: selectorIndex numArgs: numArgs
 	 The last send trampoline (NumSendTrampolines - 1) passes numArgs in SendNumArgsReg."
 	numArgs >= (NumSendTrampolines - 1) ifTrue: [
 		self MoveCq: numArgs R: SendNumArgsReg ].
+
+	"FIXME: Handle moving objects on the GC"
+	(self MoveCw: picTable R: ClassReg) annotation: annotation.
+	objectRepresentation
+		genEnsureOopInRegNotForwarded: ClassReg
+		scratchReg: TempReg.
+
 	(BytecodeSetHasDirectedSuperSend and: [
 		 annotation
 			 between: IsDirectedSuperSend
 			 and: IsDirectedSuperBindingSend ]) ifTrue: [
 		self genMoveConstant: tempOop R: TempReg ].
-	self genMoveConstant: picTable R: ClassReg.
-	(self Call: (sendTable at: (numArgs min: NumSendTrampolines - 1)))
-		annotation: annotation.
+
+	objectRepresentation genLoadSlot: 1 sourceReg: ClassReg destReg: Extra0Reg.
+	self CallR: Extra0Reg.
+
 	self voidReceiverOptStatus.
 	^ self ssPushRegister: ReceiverResultReg
 ]
@@ -2066,11 +2077,11 @@ StackToRegisterMappingCogit >> genMethodAbortTrampolineFor: numArgs [
 		resultReg: NoReg.
 	jumpSICMiss jmpTarget: self Label.
 	backEnd genPushRegisterArgsForAbortMissNumArgs: numArgs.
-	^self genTrampolineFor: #ceSICMiss:
+	^self genTrampolineFor: #ceSICMiss:icTable:
 		called: (self trampolineName: 'ceMethodAbort' numRegArgs: numArgs)
 		numArgs: 1
 		arg: ReceiverResultReg
-		arg: nil
+		arg: ClassReg
 		arg: nil
 		arg: nil
 		regsToSave: self emptyRegisterMask
@@ -2099,12 +2110,12 @@ StackToRegisterMappingCogit >> genPICMissTrampolineFor: numArgs [
 	self zeroOpcodeIndex.
 	"N.B. a closed PIC jumps to the miss routine, not calls it, so there is only one retpc on the stack."
 	backEnd genPushRegisterArgsForNumArgs: numArgs scratchReg: SendNumArgsReg.
-	self genTrampolineFor: #ceCPICMiss:receiver:
+	self genTrampolineFor: #ceCPICMiss:receiver:icTable:
 		called: (self trampolineName: 'cePICMiss' numRegArgs: numArgs)
-		numArgs: 2
-		arg: ClassReg
+		numArgs: 3
+		arg: Extra0Reg
 		arg: ReceiverResultReg
-		arg: nil
+		arg: ClassReg
 		arg: nil
 		regsToSave: self emptyRegisterMask
 		pushLinkReg: true
@@ -3913,7 +3924,7 @@ StackToRegisterMappingCogit >> profilingDataFor: descriptor Annotation: isBackwa
 		 ^0].
 
 	annotation := isBackwardBranchAndAnnotation >> 1.
-	((self isPureSendAnnotation: annotation)
+	((self isSendAnnotation: annotation)
 	 and: [entryPoint := backEnd callTargetFromReturnAddress: mcpc asUnsignedInteger.
 		 entryPoint > methodZoneBase]) ifFalse: "send is not linked, or is not a send"
 		[^0].

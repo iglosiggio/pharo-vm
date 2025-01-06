@@ -2337,8 +2337,19 @@ SimpleStackBasedCogit >> genSend: selectorIndex numArgs: numArgs sendTable: send
 	
 	<story: #pic>
 	
-	| annotation |
+	| annotation picTable selectorOop |
 	self assert: needsFrame.
+
+	selectorOop := selectorIndex < 0
+		               ifTrue: [
+		               coInterpreter specialSelector: -1 - selectorIndex ]
+		               ifFalse: [ self getLiteral: selectorIndex ].
+	picTable := objectMemory
+		            allocateICTable: selectorOop
+		            withUnlinkedHandler:
+		            (sendTable at: (numArgs min: NumSendTrampolines - 1)).
+	picTable ifNil: [ ^ InsufficientCodeSpace ].
+
 	annotation := self annotationForSendTable: sendTable.
 	self assert: (numArgs between: 0 and: 255). "say"
 	self MoveMw: numArgs * objectMemory wordSize r: SPReg R: ReceiverResultReg.
@@ -2349,14 +2360,21 @@ SimpleStackBasedCogit >> genSend: selectorIndex numArgs: numArgs sendTable: send
 	 The last send trampoline (NumSendTrampolines - 1) passes numArgs in SendNumArgsReg."
 	numArgs >= (NumSendTrampolines - 1) ifTrue:
 		[self MoveCq: numArgs R: SendNumArgsReg].
+
+	"FIXME: Handle moving objects on the GC"
+	(self MoveCw: picTable R: ClassReg) annotation: annotation.
+	objectRepresentation
+		genEnsureOopInRegNotForwarded: ClassReg
+		scratchReg: TempReg.
+
 	(BytecodeSetHasDirectedSuperSend
 	 and: [annotation
 			between: IsDirectedSuperSend
 			and: IsDirectedSuperBindingSend]) ifTrue:
 		[self genMoveConstant: tempOop R: TempReg].
-	self genLoadInlineCacheWithSelector: selectorIndex.
 
-	(self Call: (sendTable at: (numArgs min: NumSendTrampolines - 1))) annotation: annotation.
+	objectRepresentation genLoadSlot: 1 sourceReg: ClassReg destReg: Extra0Reg.
+	self CallR: Extra0Reg.
 	self PushR: ReceiverResultReg.
 	^0
 ]
@@ -2790,10 +2808,11 @@ SimpleStackBasedCogit >> generateMissAbortTrampolines [
 
 	ceMethodAbortTrampoline := self genMethodAbortTrampoline.
 	cePICAbortTrampoline := self genPICAbortTrampoline.
-	ceCPICMissTrampoline := self genTrampolineFor: #ceCPICMiss:receiver:
+	ceCPICMissTrampoline := self genTrampolineFor: #ceCPICMiss:receiver:icTable:
 								called: 'ceCPICMissTrampoline'
-								arg: ClassReg
-								arg: ReceiverResultReg.
+								arg: Extra0Reg
+								arg: ReceiverResultReg
+								arg: ClassReg.
 	ceReapAndResetErrorCodeTrampoline := self genTrampolineFor: #ceReapAndResetErrorCodeFor:
 												called: 'ceReapAndResetErrorCodeTrampoline'
 												arg: ClassReg
