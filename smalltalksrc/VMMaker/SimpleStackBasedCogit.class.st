@@ -2332,51 +2332,52 @@ SimpleStackBasedCogit >> genSend: selectorIndex numArgs: numArgs [
 
 { #category : 'bytecode generator support' }
 SimpleStackBasedCogit >> genSend: selectorIndex numArgs: numArgs sendTable: sendTable [
+
 	<inline: false>
 	<var: #sendTable type: #'sqInt *'>
-	
 	<story: #pic>
-	
-	| annotation picTable selectorOop |
+	| annotation icTable selectorOop |
 	self assert: needsFrame.
 
 	selectorOop := selectorIndex < 0
-		               ifTrue: [
-		               coInterpreter specialSelector: -1 - selectorIndex ]
+		               ifTrue: [ coInterpreter specialSelector: -1 - selectorIndex ]
 		               ifFalse: [ self getLiteral: selectorIndex ].
-	picTable := objectMemory
+	icTable := objectMemory
 		            allocateICTable: selectorOop
 		            withUnlinkedHandler:
 		            (sendTable at: (numArgs min: NumSendTrampolines - 1)).
-	picTable ifNil: [ ^ InsufficientCodeSpace ].
+	icTable ifNil: [ ^ InsufficientCodeSpace ].
 
 	annotation := self annotationForSendTable: sendTable.
 	self assert: (numArgs between: 0 and: 255). "say"
 	self MoveMw: numArgs * objectMemory wordSize r: SPReg R: ReceiverResultReg.
 	"Deal with stale super sends; see SpurMemoryManager's class comment."
-	(self annotationIsForUncheckedEntryPoint: annotation) ifTrue:
-		[objectRepresentation genEnsureOopInRegNotForwarded: ReceiverResultReg scratchReg: TempReg].
+	(self annotationIsForUncheckedEntryPoint: annotation) ifTrue: [
+		objectRepresentation
+			genEnsureOopInRegNotForwarded: ReceiverResultReg
+			scratchReg: TempReg ].
 	"0 through (NumSendTrampolines - 2) numArgs sends have the arg count implciti in the trampoline.
 	 The last send trampoline (NumSendTrampolines - 1) passes numArgs in SendNumArgsReg."
-	numArgs >= (NumSendTrampolines - 1) ifTrue:
-		[self MoveCq: numArgs R: SendNumArgsReg].
+	numArgs >= (NumSendTrampolines - 1) ifTrue: [
+		self MoveCq: numArgs R: SendNumArgsReg ].
 
 	"FIXME: Handle moving objects on the GC"
-	(self MoveCw: picTable R: ClassReg) annotation: annotation.
+	(self MoveUniqueCw: icTable R: ClassReg) annotation: annotation.
 	objectRepresentation
 		genEnsureOopInRegNotForwarded: ClassReg
 		scratchReg: TempReg.
 
-	(BytecodeSetHasDirectedSuperSend
-	 and: [annotation
-			between: IsDirectedSuperSend
-			and: IsDirectedSuperBindingSend]) ifTrue:
-		[self genMoveConstant: tempOop R: TempReg].
+	(BytecodeSetHasDirectedSuperSend and: [
+		 annotation between: IsDirectedSuperSend and: IsDirectedSuperBindingSend ])
+		ifTrue: [
+			self genMoveConstant: tempOop R: TempReg.
+			"Cache operand 0"
+			objectMemory storePointer: 3 ofObject: icTable withValue: tempOop ].
 
 	objectRepresentation genLoadSlot: 1 sourceReg: ClassReg destReg: Extra0Reg.
-	self CallR: Extra0Reg.
+	self annotateBytecode: (self CallR: Extra0Reg).
 	self PushR: ReceiverResultReg.
-	^0
+	^ 0
 ]
 
 { #category : 'bytecode generator support' }

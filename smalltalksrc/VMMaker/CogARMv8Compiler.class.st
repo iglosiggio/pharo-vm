@@ -4354,12 +4354,6 @@ CogARMv8Compiler >> initialize [
 ]
 
 { #category : 'inline cacheing' }
-CogARMv8Compiler >> inlineCacheTagAt: callSiteReturnAddress [
-	"Answer the inline cache tag for the return address of a send."
-	^self subclassResponsibility
-]
-
-{ #category : 'inline cacheing' }
 CogARMv8Compiler >> instructionAddressBefore: followingAddress [
 	"Answer the instruction address immediately preceding followingAddress."
 	<inline: true>

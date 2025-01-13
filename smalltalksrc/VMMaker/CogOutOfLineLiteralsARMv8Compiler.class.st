@@ -205,12 +205,6 @@ CogOutOfLineLiteralsARMv8Compiler >> getDefaultCogCodeSize [
 	^1024 * 1280
 ]
 
-{ #category : 'inline cacheing' }
-CogOutOfLineLiteralsARMv8Compiler >> inlineCacheTagAt: callSiteReturnAddress [
-	<inline: true>
-	^objectMemory unsignedLongAt: (self pcRelativeAddressAt: (callSiteReturnAddress - 8) asUnsignedInteger)
-]
-
 { #category : 'testing' }
 CogOutOfLineLiteralsARMv8Compiler >> isPCDependent [
 	"Answer if the receiver is a pc-dependent instruction.  With out-of-line literals any instruction
@@ -360,28 +354,6 @@ CogOutOfLineLiteralsARMv8Compiler >> rewriteFullTransferAt: callSiteReturnAddres
 ]
 
 { #category : 'inline cacheing' }
-CogOutOfLineLiteralsARMv8Compiler >> rewriteInlineCacheAt: callSiteReturnAddress tag: cacheTag target: callTargetAddress [
-	"Rewrite an inline cache to call a different target for a new tag.  This variant is used
-	 to link unlinked sends in ceSend:to:numArgs: et al.  Answer the extent of the code
-	 change which is used to compute the range of the icache to flush."
-	<var: #callSiteReturnAddress type: #usqInt>
-	<var: #callTargetAddress type: #usqInt>
-	| call callDistance |
-	callTargetAddress >= cogit minCallAddress ifFalse:
-		[self error: 'linking callsite to invalid address'].
-	callDistance := (callTargetAddress - (callSiteReturnAddress - 4 "return offset")).
-	self assert: (self isInImmediateJumpRange: callDistance). "we don't support long call updates here"
-	call := self bl: callDistance.
-	objectMemory
-		uint32AtPointer: (self instructionAddressBefore: callSiteReturnAddress ) put: call;
-		unsignedLong64At: (self pcRelativeAddressAt: callSiteReturnAddress - 8) put: cacheTag signedIntToLong64.
-	self assert: (self inlineCacheTagAt: callSiteReturnAddress) = cacheTag  signedIntToLong64.
-	"self cCode: ''
-		inSmalltalk: [cogit disassembleFrom: callSiteReturnAddress - 8 to: (self pcRelativeAddressAt: callSiteReturnAddress - 8)]."
-	^4
-]
-
-{ #category : 'inline cacheing' }
 CogOutOfLineLiteralsARMv8Compiler >> rewriteInlineCacheTag: cacheTag at: callSiteReturnAddress [
 	"Rewrite an inline cache with a new tag.  This variant is used
 	 by the garbage collector."
@@ -432,7 +404,7 @@ CogOutOfLineLiteralsARMv8Compiler >> sizePCDependentInstructionAt: eventualAbsol
 	(dependent notNil and: [dependent opcode = Literal]) ifTrue:
 		[opcode = Literal ifTrue:
 			[dependent address: address].
-		 annotation = cogit getIsObjectReference ifTrue:
+		 (annotation = cogit getIsObjectReference or: [ cogit isSendAnnotation: annotation ]) ifTrue:
 			[dependent annotation: annotation.
 			 annotation := nil]].
 	^machineCodeSize := maxSize

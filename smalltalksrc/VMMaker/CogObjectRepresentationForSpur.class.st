@@ -203,14 +203,6 @@ CogObjectRepresentationForSpur >> branchIf: reg notInstanceOfBehaviors: arrayObj
 	^ self mixed: numNonImmediates branchIf: reg notInstanceOfBehaviors: arrayObj target: targetFixUp
 ]
 
-{ #category : 'garbage collection' }
-CogObjectRepresentationForSpur >> cacheTagIsMarked: cacheTag [
-	"Answer if the cacheTag is not unmarked, i.e. answer true for compact class
-	 indices and immediates; only answer false for unmarked objects.  In Spur
-	 linked send cache tags are class indices so effectively they're always marked."
-	^true
-]
-
 { #category : 'sista support' }
 CogObjectRepresentationForSpur >> callStoreCheckTrampoline [
 	cogit CallRT: ceStoreCheckTrampoline
@@ -3056,12 +3048,21 @@ CogObjectRepresentationForSpur >> markAndTraceLiteral: literal in: cogMethod at:
 ]
 
 { #category : 'garbage collection' }
-CogObjectRepresentationForSpur >> markAndTraceLiteral: literal in: cogMethodOrNil atpc: address [
+CogObjectRepresentationForSpur >> markAndTraceLiteralIfYoung: literal [
+	((self couldBeObject: literal)
+	 and: [objectMemory getMemoryMap isYoungObject: literal]) ifTrue:
+		[self assert: (objectMemory addressCouldBeObj: literal).
+		 objectMemory markAndTrace: literal]
+]
+
+{ #category : 'garbage collection' }
+CogObjectRepresentationForSpur >> markAndTraceLiteralIn: cogMethodOrNil atpc: address [
 	"Mark and trace a literal in a machine code instruction preceding address in cogMethodOrNil.
 	 Answer if code was modified."
 	<var: #cogMethodOrNil type: #'CogMethod *'>
 	<var: #address type: #usqInt>
-	| objOop |
+	| literal objOop |
+	literal := cogit fetchLiteralAtAnnotatedAddress: address.
 	(self couldBeObject: literal) ifFalse:
 		[^false].
 	self assert: (objectMemory addressCouldBeObj: literal).
@@ -3073,14 +3074,6 @@ CogObjectRepresentationForSpur >> markAndTraceLiteral: literal in: cogMethodOrNi
 	cogit storeLiteral: objOop atAnnotatedAddress: address.
 	self markAndTraceUpdatedLiteral: objOop in: cogMethodOrNil.
 	^true
-]
-
-{ #category : 'garbage collection' }
-CogObjectRepresentationForSpur >> markAndTraceLiteralIfYoung: literal [
-	((self couldBeObject: literal)
-	 and: [objectMemory getMemoryMap isYoungObject: literal]) ifTrue:
-		[self assert: (objectMemory addressCouldBeObj: literal).
-		 objectMemory markAndTrace: literal]
 ]
 
 { #category : 'garbage collection' }

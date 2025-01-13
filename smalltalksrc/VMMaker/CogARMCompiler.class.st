@@ -2446,12 +2446,6 @@ CogARMCompiler >> initialize [
 ]
 
 { #category : 'inline cacheing' }
-CogARMCompiler >> inlineCacheTagAt: callSiteReturnAddress [
-	"Answer the inline cache tag for the return address of a send."
-	^self subclassResponsibility
-]
-
-{ #category : 'inline cacheing' }
 CogARMCompiler >> instructionAddressBefore: followingAddress [
 	"Answer the instruction address immediately preceding followingAddress."
 	<inline: true>

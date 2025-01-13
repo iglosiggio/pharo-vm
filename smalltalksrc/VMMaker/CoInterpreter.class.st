@@ -2340,7 +2340,7 @@ CoInterpreter >> executeCogMethod: cogMethod fromUnlinkedSendWithReceiver: rcvr 
 ]
 
 { #category : 'enilopmarts' }
-CoInterpreter >> executeCogPIC: cogPIC fromLinkedSendWithReceiver: rcvr andCacheTag: cacheTag [
+CoInterpreter >> executeCogPIC: cogPIC fromLinkedSendWithReceiver: rcvr andICTable: icTable [
 	<api>
 	"Execute a closed PIC from a linked send, to redispatch based on the rcvr.
 	 The receiver, arguments and return address are on the Smalltalk stack.
@@ -2357,7 +2357,7 @@ CoInterpreter >> executeCogPIC: cogPIC fromLinkedSendWithReceiver: rcvr andCache
 	self push: cogPIC asInteger + cogit entryOffset.
 	cogit numRegArgs > 0 ifTrue:"dont use and: so as to get Slang to inline cogit numRegArgs > 0"
 		[cogPIC cmNumArgs <= cogit numRegArgs ifTrue:
-			[self push: cacheTag.
+			[self push: icTable.
 			 cogPIC cmNumArgs caseOf: {
 				[0]	->	[self callEnilopmart: #ceCall0ArgsPIC].
 				[1]	->	[self callEnilopmart: #ceCall1ArgsPIC].
@@ -2367,7 +2367,7 @@ CoInterpreter >> executeCogPIC: cogPIC fromLinkedSendWithReceiver: rcvr andCache
 			 self error: 'not reached']].
 	self
 		push: rcvr;
-		push: cacheTag.
+		push: icTable.
 	self callEnilopmart: #ceCallCogCodePopReceiverAndClassRegs.
 	self unreachable
 ]

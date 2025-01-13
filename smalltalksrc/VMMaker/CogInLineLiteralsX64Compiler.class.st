@@ -161,12 +161,6 @@ CogInLineLiteralsX64Compiler >> getDefaultCogCodeSize [
 	^1024 * 1400
 ]
 
-{ #category : 'inline cacheing' }
-CogInLineLiteralsX64Compiler >> inlineCacheTagAt: callSiteReturnAddress [
-	"Answer the inline cache tag for the return address of a send."
-	^self literal32BeforeFollowingAddress: callSiteReturnAddress - 5
-]
-
 { #category : 'testing' }
 CogInLineLiteralsX64Compiler >> isPCDependent [
 	"Answer if the receiver is a pc-dependent instruction."

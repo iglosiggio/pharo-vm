@@ -405,6 +405,11 @@ CogMethodZone >> initialize [
 ]
 
 { #category : 'young referers' }
+CogMethodZone >> isInMethodZone: address [
+	^ address between: baseAddress and: limitAddress.
+]
+
+{ #category : 'young referers' }
 CogMethodZone >> kosherYoungReferrers [
 	"Answer that all entries in youngReferrers are in-use and have the cmRefersToYoung flag set.
 	 Used to check that the youngreferrers pruning routines work correctly."

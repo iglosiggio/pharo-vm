@@ -3643,12 +3643,6 @@ CogIA32Compiler >> hasThreeAddressArithmetic [
 	^false
 ]
 
-{ #category : 'inline cacheing' }
-CogIA32Compiler >> inlineCacheTagAt: callSiteReturnAddress [
-	"Answer the inline cache tag for the return address of a send."
-	^self literalBeforeFollowingAddress: callSiteReturnAddress - 5
-]
-
 { #category : 'disassembly' }
 CogIA32Compiler >> instructionSizeAt: pc [
 	"Answer the instruction size at pc.  This is very far from a full decode.

@@ -47,13 +47,6 @@ CogInLineLiteralsARMCompiler >> getDefaultCogCodeSize [
 	^1024 * 1536
 ]
 
-{ #category : 'inline cacheing' }
-CogInLineLiteralsARMCompiler >> inlineCacheTagAt: callSiteReturnAddress [
-	"Answer the inline cache tag for the return address of a send."
-	self assert: (self instructionIsBL: (self instructionBeforeAddress: callSiteReturnAddress)).
-	^self extract32BitOperandFrom4InstructionsPreceding: callSiteReturnAddress - 4
-]
-
 { #category : 'testing' }
 CogInLineLiteralsARMCompiler >> insert32BitOperand: operand into4InstructionsPreceding: addr [
 	<inline: true>
