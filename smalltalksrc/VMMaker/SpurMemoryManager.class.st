@@ -643,6 +643,7 @@ Class {
 		'WeaklingStackRootIndex'
 	],
 	#pools : [
+		'ICTableConstants',
 		'SpurMemoryManagementConstants',
 		'VMBasicConstants',
 		'VMBytecodeConstants',
@@ -1736,6 +1737,7 @@ SpurMemoryManager >> allOldSpaceEntitiesForCompactingFrom: initialObject to: fin
 { #category : 'object enumeration' }
 SpurMemoryManager >> allOldSpaceEntitiesFrom: initialObject do: aBlock [
 
+	<flag: #failsWarn "(uint64AtPointer(objOop21)) != 0">
 	| prevObj prevPrevObj objOop |
 	self assert: (memoryMap isOldObject: initialObject).
 	prevPrevObj := prevObj := nil.
@@ -1923,29 +1925,38 @@ SpurMemoryManager >> allocateClassTable [
 { #category : 'allocation' }
 SpurMemoryManager >> allocateICTable: selectorOop withUnlinkedHandler: unlinkedTrampoline [
 
+	<flag: #workingSet>
 	<api>
 	| tableSlotCount result |
 	self assert: (self addressCouldBeOop: selectorOop).
 
-	tableSlotCount := 5.
+	tableSlotCount := ICSlotCount.
 
 	result := self
 		          allocateSlots: tableSlotCount
-		          format: (self byteFormatForNumBytes: tableSlotCount * self bytesPerOop)
+		          format:
+		          (self byteFormatForNumBytes: tableSlotCount * self bytesPerOop)
 		          classIndex: ClassByteArrayCompactIndex
 		          isPinned: false
 		          isOldSpace: true.
 	result ifNotNil: [
-		"Selector"
-		self storePointer: 0 ofObject: result withValue: selectorOop.
-		"Current handler"
-		self storePointer: 1 ofObject: result withValue: unlinkedTrampoline.
-		"Cache tag 0"
-		self storePointer: 2 ofObject: result withValue: (self integerObjectOf: 0).
-		"Cache operand 0"
-		self storePointer: 3 ofObject: result withValue: (self integerObjectOf: 0).
-		"Cache value 0"
-		self storePointer: 4 ofObject: result withValue: (self integerObjectOf: 0). ].
+		self storePointer: ICSelectorIndex ofObject: result withValue: selectorOop.
+		self
+			storePointer: ICHandlerIndex
+			ofObject: result
+			withValue: unlinkedTrampoline.
+		self
+			storePointer: ICCacheTag0Index
+			ofObject: result
+			withValue: (self integerObjectOf: 0).
+		self
+			storePointer: ICCacheOperand0Index
+			ofObject: result
+			withValue: self nilObject.
+		self
+			storePointer: ICCacheValue0Index
+			ofObject: result
+			withValue: (self integerObjectOf: 0) ].
 	^ result
 ]
 
@@ -2685,6 +2696,9 @@ SpurMemoryManager >> assertFreeChunkPrevHeadZero [
 { #category : 'free space' }
 SpurMemoryManager >> assertInnerValidFreeObject: objOop [
 	<inline: #never> "we don't want to inline so we can nest that in an assertion with the return true so the production VM does not generate any code here, while in simulation, the code breaks on the assertion we want to."
+	<flag: #failsWarn "(bytesInObject(treeNode)) >= ((numFreeLists()) * (allocationUnit()))">
+	<flag: #failsWarn "(chunk == 0) || ((isFreeOop(chunk)) && (isLargeFreeObject(chunk)))">
+	<flag: #failsWarn "(chunk == 0) || ((isFreeOop(chunk)) && (isLargeFreeObject(chunk)))">
 	| chunk index |
 	self assert: (self isFreeOop: objOop).
 	self assert: (self oop: (self addressAfter: objOop) isLessThanOrEqualTo: memoryMap oldSpaceEnd).
@@ -3137,6 +3151,7 @@ SpurMemoryManager >> checkFreeSpace [
 
 { #category : 'debug support' }
 SpurMemoryManager >> checkFreeSpace: gcModes [
+	<flag: #failsWarn "GIV(totalFreeOldSpace) == (totalFreeListBytes())">
 	self assert: self bitsSetInFreeSpaceMaskForAllFreeLists.
 	self assert: totalFreeOldSpace = self totalFreeListBytes.
 	(gcModes > 0
@@ -5653,6 +5668,8 @@ SpurMemoryManager >> followForwardedObjectFields: objOop toDepth: depth [
 
 { #category : 'forwarding' }
 SpurMemoryManager >> followMaybeForwarded: objOop [
+	"FIXME: Should we copy this to cogit so it can be inlined there?"
+	<api>
 	<inline: true>
 	^(self isOopForwarded: objOop)
 		ifTrue: [self noInlineFollowForwarded: objOop]
@@ -7562,6 +7579,7 @@ SpurMemoryManager >> isEnumerableObject: objOop [
 	 Non-objects should be excluded; these are bridges and free chunks."
 	| classIndex |
 	<inline: true>
+	<flag: #failsWarn "((uint64AtPointer(objOop)) != 0) && (classIndex < (GIV(numClassTablePages) * (classTablePageSize())))">
 	classIndex := self classIndexOf: objOop.
 	self assert: ((self uint64AtPointer: objOop) ~= 0
 				  and: [classIndex < (numClassTablePages * self classTablePageSize)]).
@@ -13182,6 +13200,8 @@ SpurMemoryManager >> totalFreeListBytes [
 	 on the free lists/tree, and checks that the tree is valid.  It is used mainly by checkFreeSpace."
 	| totalFreeBytes bytesInChunk listNode nextNode |	
 	<var: 'totalFreeBytes' type: #'sqInt'>
+	<flag: #failsWarn "(bytesInObject(treeNode2)) >= ((numFreeLists()) * (allocationUnit()))">
+	<flag: #failsWarn "(bytesInChunk / (allocationUnit())) >= (numFreeLists())">
 
 	totalFreeBytes := 0.
 	1 to: self numFreeLists - 1 do:

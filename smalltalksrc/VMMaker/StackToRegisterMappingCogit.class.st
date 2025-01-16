@@ -1998,6 +1998,7 @@ StackToRegisterMappingCogit >> genMappedInlinePrimitive: primIndex [
 { #category : 'bytecode generator support' }
 StackToRegisterMappingCogit >> genMarshalledSend: selectorIndex numArgs: numArgs sendTable: sendTable [
 
+	<flag: #workingSet>
 	<inline: false>
 	<var: #sendTable type: #'sqInt *'>
 	| annotation icTable selectorOop |
@@ -2033,10 +2034,9 @@ StackToRegisterMappingCogit >> genMarshalledSend: selectorIndex numArgs: numArgs
 		 annotation between: IsDirectedSuperSend and: IsDirectedSuperBindingSend ])
 		ifTrue: [
 			self genMoveConstant: tempOop R: TempReg.
-			"Cache operand 0"
-			objectMemory storePointer: 3 ofObject: icTable withValue: tempOop ].
+			objectMemory storePointer: ICCacheOperand0Index ofObject: icTable withValue: tempOop ].
 
-	objectRepresentation genLoadSlot: 1 sourceReg: ClassReg destReg: Extra0Reg.
+	objectRepresentation genLoadSlot: ICHandlerIndex sourceReg: ClassReg destReg: Extra0Reg.
 	self annotateBytecode: (self CallR: Extra0Reg).
 
 	self voidReceiverOptStatus.
@@ -3789,19 +3789,19 @@ StackToRegisterMappingCogit >> populate: tuple withPICInfoFor: cPIC firstCacheTa
 
 { #category : 'testing' }
 StackToRegisterMappingCogit >> prevInstIsPCAnnotated [
-	| prevIndex prevInst |
+
 	<var: #prevInst type: #'AbstractInstruction *'>
-	opcodeIndex > 0 ifFalse:
-		[^false].
+	| prevIndex |
+	opcodeIndex > 0 ifFalse: [ ^ false ].
 	prevIndex := opcodeIndex - 1.
-	[prevIndex <= 0 ifTrue: [^false].
-	 prevInst := self abstractInstructionAt: prevIndex.
-	 (self isPCMappedAnnotation: (prevInst annotation ifNil: [0])) ifTrue:
-		[^true].
-	 prevInst opcode = Label]
-		whileTrue:
-			[prevIndex := prevIndex - 1].
-	^false
+	[
+	| prevInst annotation |
+	prevIndex <= 0 ifTrue: [ ^ false ].
+	prevInst := self abstractInstructionAt: prevIndex.
+	annotation := prevInst annotation ifNil: [ 0 ].
+	annotation = HasBytecodePC ifTrue: [ ^ true ].
+	prevInst opcode = Label ] whileTrue: [ prevIndex := prevIndex - 1 ].
+	^ false
 ]
 
 { #category : 'tests' }
@@ -3897,6 +3897,8 @@ StackToRegisterMappingCogit >> profilingDataFor: descriptor Annotation: isBackwa
 	<var: #cogMethodArg type: #'void *'>
 	<var: #methodClassIfSuper type: #sqInt>
 	<var: #counter type: #'unsigned int'>
+	<flag: #workingSet>
+	<flag: #FIXME "Broken since isSend is no longer being enumerated">
 	| annotation tuple counter icTable handler |
 	"N.B. Counters are always 32-bits, having two 16-bit halves for the reached and taken counts."
 	descriptor ifNil: [ ^ 0 ].
@@ -3926,10 +3928,9 @@ StackToRegisterMappingCogit >> profilingDataFor: descriptor Annotation: isBackwa
 	(self isSendAnnotation: annotation) ifFalse: [ "not a send" ^ 0 ].
 
 	icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
-	(objectMemory isOopForwarded: icTable) ifTrue: [
-		icTable := objectMemory followForwarded: icTable ].
+	icTable := objectMemory followMaybeForwarded: icTable.
 	"FIXME: self assertValidICTable: icTable"
-	handler := objectRepresentation fetchPointer: 1 ofObject: icTable.
+	handler := objectRepresentation fetchPointer: ICHandlerIndex ofObject: icTable.
 	handler > methodZoneBase ifFalse: [ "send is not linked" ^ 0 ].
 
 	"It's a linked send; find which kind."
@@ -3945,10 +3946,10 @@ StackToRegisterMappingCogit >> profilingDataFor: descriptor Annotation: isBackwa
 						                      methodObject ].
 			sendTable = directedSuperSendTrampolines ifTrue: [
 				"Cache operand 0"
-				association := objectMemory fetchPointer: 3 ofObject: icTable.
+				association := objectMemory fetchPointer: ICCacheOperand0Index ofObject: icTable.
 				methodClassIfSuper := objectRepresentation valueOfAssociation: association ].
 
-			cacheTag := objectMemory fetchPointer: 2 ofObject: icTable.
+			cacheTag := objectMemory fetchPointer: ICCacheTag0Index ofObject: icTable.
 			tuple := self
 				         profilingDataForSendTo: targetCogCode
 				         methodClassIfSuper: methodClassIfSuper

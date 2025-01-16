@@ -118,6 +118,7 @@ Class {
 	],
 	#pools : [
 		'CogMethodConstants',
+		'ICTableConstants',
 		'VMStackFrameOffsets'
 	],
 	#category : 'VMMaker-JIT',
@@ -2892,6 +2893,7 @@ CoInterpreter >> handleUnlinkedSendFor: maybeForwardedICTable to: receiver isSup
 
 	 Link attempts may fail; e.g. because we're out of code memory."
 
+	<flag: #workingSet>
 	<story: #pic>
 	<inline: #always>
 	<var: #cogMethod type: #'CogMethod *'>
@@ -2906,10 +2908,10 @@ CoInterpreter >> handleUnlinkedSendFor: maybeForwardedICTable to: receiver isSup
 	(objectMemory isOopForwarded: icTable) ifTrue: [
 		icTable := objectMemory followForwarded: icTable ].
 
-	selector := objectMemory fetchPointer: 0 ofObject: icTable.
+	selector := objectMemory fetchPointer: ICSelectorIndex ofObject: icTable.
 	(objectMemory isOopForwarded: icTable) ifTrue: [
 		selector := self handleForwardedSelectorFaultFor: selector.
-		objectMemory storePointer: 0 ofObject: icTable withValue: selector ].
+		objectMemory storePointer: ICSelectorIndex ofObject: icTable withValue: selector ].
 
 	found := self lookupInMethodCacheSel: selector classTag: classTag.
 	found ifTrue: [ "

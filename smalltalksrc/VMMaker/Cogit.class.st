@@ -292,6 +292,7 @@ Class {
 		'CogCompilationConstants',
 		'CogMethodConstants',
 		'CogRTLOpcodes',
+		'ICTableConstants',
 		'VMBasicConstants',
 		'VMBytecodeConstants',
 		'VMObjectIndices',
@@ -884,6 +885,18 @@ Cogit class >> initializeErrorCodes [
 ]
 
 { #category : 'class initialization' }
+Cogit class >> initializeICTableConstants [
+
+	<flag: #workingSet>
+	ICHandlerIndex := 0.
+	ICSelectorIndex := 1.
+	ICCacheTag0Index := 2.
+	ICCacheOperand0Index := 3.
+	ICCacheValue0Index := 4.
+	ICSlotCount := 5
+]
+
+{ #category : 'class initialization' }
 Cogit class >> initializeMiscConstants [
 	super initializeMiscConstants.
 	Debug := InitializationOptions at: #Debug ifAbsent: [false].
@@ -1226,6 +1239,7 @@ Cogit class >> initializeWithOptions: optionsDictionary [
 	self initializeMiscConstants. "must precede other initialization."
 	self initializeErrorCodes.
 	self initializeCogMethodConstants.
+	self initializeICTableConstants.
 	self initializeBytecodeTable.
 	self initializeAnnotationConstants.
 	self initializeNumTrampolines.
@@ -3801,6 +3815,7 @@ Cogit >> ceCPICMiss: cPIC receiver: receiver icTable: icTable [
 	  sp=>	sender return address"
 
 	<api>
+	<flag: #workingSet>
 	<story: #pic>
 	<var: #cPIC type: #'CogMethod *'>
 	| cacheTag0 newTargetMethodOrNil errorSelectorOrNil |
@@ -3816,7 +3831,7 @@ Cogit >> ceCPICMiss: cPIC receiver: receiver icTable: icTable [
 
 	self assert: (objectMemory isNotForwarded: icTable).
 	"FIXME: self assertValidICTable: icTable"
-	cacheTag0 := objectMemory fetchPointer: 2 ofObject: icTable.
+	cacheTag0 := objectMemory fetchPointer: ICCacheTag0Index ofObject: icTable.
 	self deny: cacheTag0 = self isMNUPicAbortDiscriminatorValue.
 
 	"Transition to megamorphic if the PIC is full"
@@ -4051,14 +4066,15 @@ Cogit >> ceSICMiss: receiver icTable: icTable [
 	 and we can find the send site from the outer return address."
 
 	<api>
+	<flag: #workingSet>
 	<story: #pic>
 	<var: #inlineCache type: #'CogMethod *'>
 	| inlineCache missedTargetReturnAddress missedTargetCogMethod sendHandler sendCacheTag newTargetMethodOrNil errorSelectorOrNil cacheTag linkingSucceeded |
 
 	"FIXME: self assertValidICTable"
 	self assert: (objectMemory isNotForwarded: icTable).
-	sendHandler := objectMemory fetchPointer: 1 ofObject: icTable.
-	sendCacheTag := objectMemory fetchPointer: 2 ofObject: icTable.
+	sendHandler := objectMemory fetchPointer: ICHandlerIndex ofObject: icTable.
+	sendCacheTag := objectMemory fetchPointer: ICCacheTag0Index ofObject: icTable.
 
 	"Whether we can relink to a PIC or not we need to pop off the inner return and identify the target method."
 	missedTargetCogMethod := self
@@ -4141,7 +4157,7 @@ Cogit >> ceSICMiss: receiver icTable: icTable [
 		The thing below should probably be rewritten as
 		self onICTable: icTable setHandler: inlineCache asInteger + cmEntryOffset"
 		objectMemory
-			storePointer: 1
+			storePointer: ICHandlerIndex
 			ofObject: icTable
 			withValue: inlineCache asInteger + cmEntryOffset.
 
@@ -4319,11 +4335,11 @@ Cogit >> checkIfValidOopRef: annotation pc: mcpc cogMethod: cogMethod [
 				cr.
 			^ 1 ].
 		self offsetAndSendTableFor: annotation into: [ :off :table | entryOffset := off ].
-		selector := objectRepresentation fetchPointer: 0 ofObject: icTable.
-		handler := objectRepresentation fetchPointer: 1 ofObject: icTable.
-		cacheTag := objectRepresentation fetchPointer: 2 ofObject: icTable.
-		cacheOperand := objectRepresentation fetchPointer: 3 ofObject: icTable.
-		cacheValue := objectRepresentation fetchPointer: 4 ofObject: icTable.
+		selector := objectRepresentation fetchPointer: ICSelectorIndex ofObject: icTable.
+		handler := objectRepresentation fetchPointer: ICHandlerIndex ofObject: icTable.
+		cacheTag := objectRepresentation fetchPointer: ICCacheTag0Index ofObject: icTable.
+		cacheOperand := objectRepresentation fetchPointer: ICCacheOperand0Index ofObject: icTable.
+		cacheValue := objectRepresentation fetchPointer: ICCacheValue0Index ofObject: icTable.
 
 		"Every send has a selector on its table"
 		(objectRepresentation checkValidOopReference: selector) ifFalse: [
@@ -4386,11 +4402,11 @@ Cogit >> checkIfValidOopRefAndTarget: annotation pc: mcpc cogMethod: cogMethod [
 			^ 5 ].
 
 		self offsetAndSendTableFor: annotation into: [ :off :table | entryOffset := off ].
-		selector := objectRepresentation fetchPointer: 0 ofObject: icTable.
-		handler := objectRepresentation fetchPointer: 1 ofObject: icTable.
-		cacheTag := objectRepresentation fetchPointer: 2 ofObject: icTable.
-		cacheOperand := objectRepresentation fetchPointer: 3 ofObject: icTable.
-		cacheValue := objectRepresentation fetchPointer: 4 ofObject: icTable.
+		selector := objectRepresentation fetchPointer: ICSelectorIndex ofObject: icTable.
+		handler := objectRepresentation fetchPointer: ICHandlerIndex ofObject: icTable.
+		cacheTag := objectRepresentation fetchPointer: ICCacheTag0Index ofObject: icTable.
+		cacheOperand := objectRepresentation fetchPointer: ICCacheOperand0Index ofObject: icTable.
+		cacheValue := objectRepresentation fetchPointer: ICCacheValue0Index ofObject: icTable.
 
 		"Every send has a selector on its table"
 		(self asserta: (objectRepresentation checkValidOopReference: selector)) ifFalse: [
@@ -5122,6 +5138,8 @@ Cogit >> collectCogConstituentFor: descriptor Annotation: isBackwardBranchAndAnn
 	<var: #mcpc type: #'char *'>
 	<var: #cogMethodArg type: #'void *'>
 	<var: #targetMethod type: #'CogMethod *'>
+	<flag: #workingSet>
+	<flag: #FIXME "Broken since isSend is no longer being enumerated">
 	| address |
 	descriptor ifNil: [ ^ 0 ].
 	descriptor isMapped ifFalse: [ ^ 0 ].
@@ -5143,10 +5161,9 @@ Cogit >> collectCogConstituentFor: descriptor Annotation: isBackwardBranchAndAnn
 		 self isSendAnnotation: isBackwardBranchAndAnnotation >> 1 ]) ifTrue: [
 		| icTable handler |
 		icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
-		objectMemory isOopForwarded: [
-			icTable := objectMemory followForwarded: icTable ].
+		icTable := objectMemory followMaybeForwarded: icTable.
 		"FIXME: self assertValidICTable: icTable"
-		handler := objectRepresentation fetchPointer: 1 ofObject: icTable.
+		handler := objectRepresentation fetchPointer: ICHandlerIndex ofObject: icTable.
 		handler > methodZoneBase ifTrue: [ "send is linked"
 			self
 				targetMethodAndSendTableFor: handler
@@ -5317,7 +5334,7 @@ Cogit >> compileCPICEntry [
 	<returnTypeC: #'AbstractInstruction *'>
 	"Compile the cache tag computation and the first comparison.  Answer the address of that comparison."
 	entry := objectRepresentation genGetInlineCacheClassTagFrom: ReceiverResultReg into: TempReg forEntry: true.
-	objectRepresentation genLoadSlot: 2 sourceReg: ClassReg destReg: Extra0Reg.
+	objectRepresentation genLoadSlot: ICCacheTag0Index sourceReg: ClassReg destReg: Extra0Reg.
 	self CmpR: Extra0Reg R: TempReg.
 	^self JumpNonZero: 0
 ]
@@ -5412,13 +5429,14 @@ Cogit >> compileCallFor: aRoutine numArgs: numArgs arg: regOrConst0 arg: regOrCo
 Cogit >> compileCogFullBlockMethod: numCopied [
 	<returnTypeC: #'CogMethod *'>
 	<option: #SistaV1BytecodeSet>
+	<flag: #seeGuille>
 	| numBytecodes successScan result |
 	hasYoungReferent := (objectMemory getMemoryMap isYoungObject: methodObj).
 	methodOrBlockNumArgs := coInterpreter argumentCountOf: methodObj.
 	inBlock := InFullBlock.
 	postCompileHook := nil.
 	maxLitIndex := -1.
-	self assert: (coInterpreter primitiveIndexOf: methodObj) = 0.
+	self assert: (coInterpreter primitiveIndexOf: methodObj) = 0 "Guille dice que esto es un falso positivo???".
 	initialPC := coInterpreter startPCOfMethod: methodObj.
 	"initial estimate.  Actual endPC is determined in scanMethod."
 	endPC := objectMemory numBytesOf: methodObj.
@@ -5518,7 +5536,7 @@ Cogit >> compileEntry [
 	 can distinguish normal and super sends (super sends bind to the noCheckEntry)."
 
 	entry := objectRepresentation genGetInlineCacheClassTagFrom: ReceiverResultReg into: TempReg forEntry: true.
-	objectRepresentation genLoadSlot: 2 sourceReg: ClassReg destReg: Extra0Reg.
+	objectRepresentation genLoadSlot: ICCacheTag0Index sourceReg: ClassReg destReg: Extra0Reg.
 	self CmpR: Extra0Reg R: TempReg.
 	self JumpNonZero: sendMiss.
 	noCheckEntry := self Label.
@@ -5647,8 +5665,9 @@ Cogit >> compilePolymorphicICPrototype [
 
 	 where we short-cut as many cases as needed by making the self goto: #Label skip as many cases
 	 as needed."
-	<inline: true>
 	| numArgs jumpNext |
+	<flag: #workingSet>
+	<inline: true>
 	<var: #jumpNext type: #'AbstractInstruction *'>
 	self compilePICAbort: (numArgs := 0). "Will get rewritten to appropriate arity when configuring."
 	jumpNext := self compileCPICEntry.
@@ -6246,6 +6265,7 @@ Cogit >> expectedClosedPICPrototype: cPIC [
 	"self disassembleFrom: methodZoneBase + (self sizeof: CogMethod) to: methodZoneBase + closedPICSize"
 
 	<var: #cPIC type: #'CogMethod *'>
+	<flag: #failsWarn "entryPoint == (cPICMissTrampolineFor(0))">
 	| pc errors object classTag entryPoint |
 
 	errors := 0.
@@ -7644,6 +7664,7 @@ Cogit >> generateClosedPICPrototype [
 	 So we have to determine how big a full one is before hand."
 	| cPIC endAddress |
 	<var: 'cPIC' type: #'CogMethod *'>
+	<flag: #failsWarn "(expectedClosedPICPrototype(cPIC)) == 0">
 	"stack allocate the various collections so that they
 	 are effectively garbage collected on return."
 	self allocateOpcodes: MaxCPICCases * 9 bytecodes: 0.
@@ -8416,10 +8437,9 @@ Cogit >> incrementUsageOfTargetIfLinkedSend: annotation mcpc: mcpc ignored: igno
 	(self isSendAnnotation: annotation) ifTrue: [
 		| icTable handler |
 		icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
-		objectMemory isOopForwarded: [
-			icTable := objectMemory followForwarded: icTable ].
+		icTable := objectMemory followMaybeForwarded: icTable.
 		"FIXME: self assertValidICTable: icTable"
-		handler := objectRepresentation fetchPointer: 1 ofObject: icTable.
+		handler := objectRepresentation fetchPointer: ICHandlerIndex ofObject: icTable.
 		handler > methodZoneBase ifTrue: [ "
 			It's a linked send."
 			self
@@ -8430,56 +8450,6 @@ Cogit >> incrementUsageOfTargetIfLinkedSend: annotation mcpc: mcpc ignored: igno
 						targetMethod cmUsageCount: targetMethod cmUsageCount + 1 ] ] ] ].
 
 	^ 0 "keep scanning"
-]
-
-{ #category : 'in-line cacheing' }
-Cogit >> indexForSelector: selector in: cogMethod at: mcpc [
-
-	"Answer the value to put in an inline-cache that is being loaded with the selector.
-	 Usually this is simply the selector, but in 64-bits the cache is only 32-bits wide
-	 and so the cache is loaded with the index of the selector."
-
-	<var: #cogMethod type: #'CogMethod *'>
-	<inline: false>
-	| methodOop |
-	
-	self assert: (objectMemory isOopForwarded: selector) not.
-	self assert:
-		(mcpc asUnsignedInteger > cogMethod asUnsignedInteger and: [ 
-			 mcpc < (cogMethod asUnsignedInteger + cogMethod blockSize) ]).
-	"First search the special selectors; there are only 32 of them so this shouldn't take too long.
-	 We could short-circuit this by keeping a hint bit in the target method, or by maintaining the
-	 maximum range of selector oops in specialSelectors since they're likely to cluster."
-	0 to: NumSpecialSelectors - 1 do: [ :i | 
-		| aSpecialSelector |
-		aSpecialSelector := coInterpreter specialSelector: i.
-		(objectMemory isOopForwarded: aSpecialSelector) ifTrue: [ 
-			aSpecialSelector := objectMemory followForwarded: aSpecialSelector ].
-		selector = aSpecialSelector ifTrue: [ ^ -1 - i ] ].
-
-	methodOop := cogMethod methodObject.
-
-	"Then search the method's literal frame... open code fetchPointer:ofObject: for speed..."
-	LiteralStart to:
-		(objectMemory literalCountOfMethodHeader: cogMethod methodHeader)
-		do: [ :i | 
-			| methodLiteral |
-			methodLiteral := objectMemory longAt:
-				                 i * objectMemory bytesPerOop
-				                 + objectMemory baseHeaderSize + methodOop.
-			(objectMemory isOopForwarded: methodLiteral) ifTrue: [ 
-				methodLiteral := objectMemory followForwarded: methodLiteral.
-				objectMemory longAt: (i * objectMemory bytesPerOop
-				                 + objectMemory baseHeaderSize + methodOop) put: methodLiteral].
-
-			methodLiteral = selector ifTrue: [ 
-				self assert:
-					selector = (coInterpreter literal: i - 1 ofMethod: methodOop).
-				^ i - 1 ] ].
-
-	self error:
-		'could not find selector in method when unlinking send site'.
-	^ 0
 ]
 
 { #category : 'generate machine code' }
@@ -8738,13 +8708,6 @@ Cogit >> isNonLocalReturnPC: retpc [
 	 and: [(backEnd callTargetFromReturnAddress: retpc) = ceNonLocalReturnTrampoline]
 ]
 
-{ #category : 'method map' }
-Cogit >> isPCMappedAnnotation: annotation [
-	"See Cogit class>>initializeAnnotationConstants"
-	<inline: true>
-	^annotation = HasBytecodePC
-]
-
 { #category : 'disassembly' }
 Cogit >> isPCWithinMethodZone: address [
 	<api>
@@ -8769,14 +8732,16 @@ Cogit >> isSendAnnotation: annotation [
 
 { #category : 'jit - api' }
 Cogit >> isSendReturnPC: retpc [
-	<api>
 	"Answer if the instruction preceding retpc is a call instruction."
+
+	<api>
 	| target |
-	(backEnd isCallPrecedingReturnPC: retpc) ifFalse:
-		[^false].
+	(backEnd isCallPrecedingReturnPC: retpc) ifFalse: [ ^ false ].
+	"CallR is only used for message sends right now"
+	(backEnd isCallRPrecedingReturnPC: retpc) ifTrue: [ ^ true ].
 	target := backEnd callTargetFromReturnAddress: retpc.
-	^(target between: firstSend and: lastSend)
-	   or: [target between: methodZoneBase and: methodZone freeStart]
+	^ (target between: firstSend and: lastSend) or: [
+		  target between: methodZoneBase and: methodZone freeStart ]
 ]
 
 { #category : 'initialization' }
@@ -8829,6 +8794,7 @@ Cogit >> latestContinuationPCFor: descriptor at: pc exts: nExts in: aMethodObj [
 
 { #category : 'in-line cacheing' }
 Cogit >> linkSendAt: icTable to: targetMethod offset: theEntryOffset receiver: receiver [
+	<flag: #workingSet>
 	<api>
 	<var: #targetMethod type: #'CogMethod *'>
 	| inlineCacheTag address |
@@ -8837,9 +8803,9 @@ Cogit >> linkSendAt: icTable to: targetMethod offset: theEntryOffset receiver: r
 						ifTrue: [targetMethod selector "i.e. no change"]
 						ifFalse: [objectRepresentation inlineCacheTagForInstance: receiver].
 	address := targetMethod asInteger + theEntryOffset.
-	objectMemory storePointer: 1 ofObject: icTable withValue: address.
-	objectMemory storePointer: 2 ofObject: icTable withValue: inlineCacheTag.
-	objectMemory storePointer: 4 ofObject: icTable withValue: address.
+	objectMemory storePointer: ICHandlerIndex ofObject: icTable withValue: address.
+	objectMemory storePointer: ICCacheTag0Index ofObject: icTable withValue: inlineCacheTag.
+	objectMemory storePointer: ICCacheValue0Index ofObject: icTable withValue: address.
 ]
 
 { #category : 'compile abstract instructions' }
@@ -9030,6 +8996,7 @@ Cogit >> mapFor: cogMethod bcpc: startbcpc performUntil: functionSymbol arg: arg
 	<inline: true>
 	| isInBlock mcpc bcpc endbcpc map mapByte homeMethod aMethodObj result
 	  latestContinuation byte descriptor nExts annotation |
+	<flag: #workingSet>
 	<var: #descriptor type: #'BytecodeDescriptor *'>
 	<var: #homeMethod type: #'CogMethod *'>
 
@@ -9075,12 +9042,8 @@ Cogit >> mapFor: cogMethod bcpc: startbcpc performUntil: functionSymbol arg: arg
 				[| nextBcpc isBackwardBranch |
 				annotation := mapByte >> AnnotationShift.
 				mcpc := mcpc + ((mapByte bitAnd: DisplacementMask) * backEnd codeGranularity).
-				(self isPCMappedAnnotation: annotation) ifTrue:
-					[(annotation = IsSendCall
-					  and: [(mapByte := objectMemory byteAt: map - 1) >> AnnotationShift = IsAnnotationExtension]) ifTrue:
-						[annotation := annotation + (mapByte bitAnd: DisplacementMask).
-						 map := map - 1].
-					 [byte := objectMemory fetchByte: bcpc ofObject: aMethodObj.
+				annotation = HasBytecodePC ifTrue:
+					[[byte := objectMemory fetchByte: bcpc ofObject: aMethodObj.
 					  descriptor := self generatorAt: byte.
 					  isInBlock
 						ifTrue: [bcpc >= endbcpc ifTrue: [^0]]
@@ -9152,6 +9115,7 @@ Cogit >> mapFor: cogMethod performUntil: functionSymbol arg: arg [
 	"Unlinking/GC/Disassembly support"
 	<var: #cogMethod type: #'CogMethod *'>
 	<var: #functionSymbol declareC: 'sqInt (*functionSymbol)(sqInt annotation, char *mcpc, sqInt arg)'>
+	<flag: #workingSet>
 	<inline: true>
 	| mcpc map mapByte annotation result |
 	mcpc := self firstMappedPCFor: cogMethod.
@@ -9614,7 +9578,7 @@ Cogit >> markLiterals: annotation pc: mcpc method: cogMethod [
 			 atpc: mcpc asUnsignedInteger) ifTrue: [ codeModified := true ].
 		icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
 		"FIXME: self assertValidICTable: icTable"
-		selector := objectRepresentation fetchPointer: 0 ofObject: icTable.
+		selector := objectRepresentation fetchPointer: ICSelectorIndex ofObject: icTable.
 		"We have to manually mark the selector because the ICTable is opaque (just a byte array)"
 		objectMemory markAndTrace: selector ].
 
@@ -9638,8 +9602,8 @@ Cogit >> markLiteralsAndUnlinkIfUnmarkedSend: annotation pc: mcpc method: cogMet
 			 atpc: mcpc asUnsignedInteger) ifTrue: [ codeModified := true ].
 		icTable := self fetchLiteralAtAnnotatedAddress: mcpc.
 		"FIXME: self assertValidICTable: icTable"
-		selector := objectRepresentation fetchPointer: 0 ofObject: icTable.
-		handler := objectRepresentation fetchPointer: 1 ofObject: icTable.
+		selector := objectRepresentation fetchPointer: ICSelectorIndex ofObject: icTable.
+		handler := objectRepresentation fetchPointer: ICHandlerIndex ofObject: icTable.
 		"We have to manually mark the selector because the ICTable is opaque (just a byte array)"
 		objectMemory markAndTrace: selector.
 
@@ -9703,10 +9667,9 @@ Cogit >> markYoungObjects: annotation pc: mcpc method: cogMethod [
 		icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
 		objectRepresentation markAndTraceLiteralIfYoung: icTable.
 		"The ICTable is an opaque object. We should mark the selector by hand"
-		(objectMemory isOopForwarded: icTable) ifTrue: [
-			icTable := objectMemory followForwarded: icTable ].
+		icTable := objectMemory followMaybeForwarded: icTable.
 		"FIXME: self assertValidICTable: icTable"
-		selector := objectRepresentation fetchPointer: 0 ofObject: icTable.
+		selector := objectRepresentation fetchPointer: ICSelectorIndex ofObject: icTable.
 		"We have to manually mark the selector because the ICTable is opaque (just a byte array)"
 		objectMemory markAndTrace: selector ].
 
@@ -9886,6 +9849,7 @@ Cogit >> maybeUnsafeJumpContinuation: latestContinuation at: bcpc for: descripto
 Cogit >> mcPCFor: bcpc startBcpc: startbcpc in: cogMethod [
 	"Answer the absolute machine code pc matching the zero-relative bytecode pc argument
 	 in cogMethod, given the start of the bytecodes for cogMethod's block or method object."
+	<flag: #forDeletion>
 	<var: #cogMethod type: #'CogMethod *'>
 	<returnTypeC: #usqInt>
 	^self
@@ -9901,6 +9865,7 @@ Cogit >> mcPCForBackwardBranch: bcpc startBcpc: startbcpc in: cogMethod [
 	 bytecode pc of a backward branch in cogMethod, given the start
 	 of the bytecodes for cogMethod's method object."
 	<api>
+	<flag: #FIXME "this looks similar to #mcPCFor:startBcpc:in: (should we unify them?)">
 	<var: #cogMethod type: #'CogMethod *'>
 	<returnTypeC: #usqInt>
 	^self
@@ -10295,7 +10260,7 @@ Cogit >> patchToMegamorphicICFor: selector numArgs: numArgs receiver: receiver i
 	"The thing below should probably be rewritten as
 	self onICTable: icTable setHandler: oPIC asInteger + cmEntryOffset"
 	objectMemory
-		storePointer: 1
+		storePointer: ICHandlerIndex
 		ofObject: icTable
 		withValue: oPIC asInteger + cmEntryOffset.
 
@@ -11016,27 +10981,26 @@ Cogit >> relocateIfCallOrMethodReference: annotation mcpc: mcpc delta: refDelta 
 	(self isSendAnnotation: annotation) ifTrue: [
 		| icTable handler |
 		icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
-		(objectMemory isOopForwarded: icTable) ifTrue: [
-			icTable := objectMemory followForwarded: icTable ].
+		icTable := objectMemory followMaybeForwarded: icTable.
 		"FIXME: self assertValidICTable: icTable"
-		handler := objectRepresentation fetchPointer: 1 ofObject: icTable.
+		handler := objectRepresentation fetchPointer: ICHandlerIndex ofObject: icTable.
 
 		handler <= methodZoneBase ifTrue: [ "send is not linked" ^ 0 ].
 
 		"It's a linked send; find which kind."
 		self offsetAndSendTableFor: annotation into: [ :offset :sendTable |
-			| targetMethod unlinkedRoutine |
+			| targetMethod newHandler |
 			targetMethod := self cCoerceSimple: handler - offset to: #'CogMethod *'.
 
-			"Target was freed; map back to an unlinked send."
-			targetMethod cmType = CMFree ifTrue: [
-				unlinkedRoutine := sendTable at:
-					                   (targetMethod cmNumArgs min: NumSendTrampolines - 1).
-				objectRepresentation
-					storePointer: 1
-					ofObject: icTable
-					withValue: unlinkedRoutine ].
-			^ 0 ] ].
+			newHandler := targetMethod cmType = CMFree
+				              ifTrue: [ "Target was freed; map back to an unlinked send"
+					              sendTable at:
+						              (targetMethod cmNumArgs min: NumSendTrampolines - 1) ]
+				              ifFalse: [ "send target not freed; just relocate"
+				              handler + targetMethod objectHeader ].
+
+			objectRepresentation storePointer: ICHandlerIndex ofObject: icTable withValue: newHandler ].
+		^ 0 ].
 
 	annotation = IsRelativeCall ifTrue: [
 		backEnd relocateCallBeforeReturnPC: mcpc asInteger by: callDelta negated.
@@ -11053,7 +11017,6 @@ Cogit >> relocateIfCallOrMethodReference: annotation mcpc: mcpc delta: refDelta 
 Cogit >> remapIfObjectRef: annotation pc: mcpc hasYoung: hasYoungPtr [
 
 	<var: #mcpc type: #'char *'>
-	<var: #targetMethod type: #'CogMethod *'>
 	annotation = IsObjectReference ifTrue: [
 		| literal mappedLiteral |
 		literal := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
@@ -11066,36 +11029,26 @@ Cogit >> remapIfObjectRef: annotation pc: mcpc hasYoung: hasYoungPtr [
 				(self cCoerceSimple: hasYoungPtr to: #'sqInt *') at: 0 put: true ] ] ].
 
 	(self isSendAnnotation: annotation) ifTrue: [
-		| icTable selector handler mappedSelector |
+		| icTable mappedIcTable selector mappedSelector |
 		icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
-		(objectMemory isOopForwarded: icTable) ifTrue: [
-			icTable := objectMemory followForwarded: icTable ].
-		"FIXME: self assertValidICTable: icTable"
-		selector := objectRepresentation fetchPointer: 0 ofObject: icTable.
-		handler := objectRepresentation fetchPointer: 1 ofObject: icTable.
+		mappedIcTable := objectRepresentation remapObject: icTable.
+		icTable ~= mappedIcTable ifTrue: [
+			self storeLiteral: mappedIcTable atAnnotatedAddress: mcpc asUnsignedInteger.
+			codeModified := true ].
+		(hasYoungPtr ~= 0 and: [ objectMemory isYoung: mappedIcTable ]) ifTrue: [
+			(self cCoerceSimple: hasYoungPtr to: #'sqInt *') at: 0 put: true ].
 
+		selector := objectRepresentation
+			            fetchPointer: ICSelectorIndex
+			            ofObject: icTable.
 		mappedSelector := objectRepresentation remapObject: selector.
 		selector ~= mappedSelector ifTrue: [
 			objectRepresentation
-				storePointer: 0
+				storePointer: ICSelectorIndex
 				ofObject: icTable
-				withValue: mappedSelector.
-			codeModified := true ].
-
+				withValue: mappedSelector ].
 		(hasYoungPtr ~= 0 and: [ objectMemory isYoung: mappedSelector ]) ifTrue: [
-			(self cCoerceSimple: hasYoungPtr to: #'sqInt *') at: 0 put: true ].
-
-		hasYoungPtr ~= 0 ifTrue: [ "
-			Since the unlinking routines may rewrite the cacheTag to the send's selector, and
-			since they don't have the cogMethod to hand and can't add it to youngReferrers,
-			the method must remain in youngReferrers if the targetMethod's selector is young."
-			handler > methodZoneBase ifTrue: [ "It's a linked send."
-				self
-					targetMethodAndSendTableFor: handler
-					annotation: annotation
-					into: [ :targetMethod :ignored |
-						(objectMemory isYoung: targetMethod selector) ifTrue: [
-							(self cCoerceSimple: hasYoungPtr to: #'sqInt *') at: 0 put: true ] ] ] ] ].
+			(self cCoerceSimple: hasYoungPtr to: #'sqInt *') at: 0 put: true ] ].
 
 	^ 0 "keep scanning"
 ]
@@ -11830,10 +11783,9 @@ Cogit >> unlinkIfFreeOrLinkedSend: annotation pc: mcpc of: theSelector [
 	(self isSendAnnotation: annotation) ifTrue: [
 		| icTable handler |
 		icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
-		(objectMemory isOopForwarded: icTable) ifTrue: [
-			icTable := objectMemory followForwarded: icTable ].
+		icTable := objectMemory followMaybeForwarded: icTable.
 		"FIXME: self assertValidICTable: icTable"
-		handler := objectRepresentation fetchPointer: 1 ofObject: icTable.
+		handler := objectRepresentation fetchPointer: ICHandlerIndex ofObject: icTable.
 
 		handler > methodZoneBase ifTrue: [ "
 			It's a linked send."
@@ -11855,11 +11807,10 @@ Cogit >> unlinkIfInvalidClassSend: annotation pc: mcpc ignored: superfluity [
 	(self isSendAnnotation: annotation) ifTrue: [
 		| icTable handler cacheTag |
 		icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
-		(objectMemory isOopForwarded: icTable) ifTrue: [
-			icTable := objectMemory followForwarded: icTable ].
+		icTable := objectMemory followMaybeForwarded: icTable.
 		"FIXME: self assertValidICTable: icTable"
-		handler := objectRepresentation fetchPointer: 1 ofObject: icTable.
-		cacheTag := objectRepresentation fetchPointer: 2 ofObject: icTable.
+		handler := objectRepresentation fetchPointer: ICHandlerIndex ofObject: icTable.
+		cacheTag := objectRepresentation fetchPointer: ICCacheTag0Index ofObject: icTable.
 
 		handler > methodZoneBase ifTrue: [ "
 			It's a linked send, but maybe a super send or linked to an OpenPIC, in which case the cache tag will be a selector...."
@@ -11883,10 +11834,9 @@ Cogit >> unlinkIfLinkedSend: annotation pc: mcpc to: theCogMethod [
 	(self isSendAnnotation: annotation) ifTrue: [
 		| icTable handler |
 		icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
-		(objectMemory isOopForwarded: icTable) ifTrue: [
-			icTable := objectMemory followForwarded: icTable ].
+		icTable := objectMemory followMaybeForwarded: icTable.
 		"FIXME: self assertValidICTable: icTable"
-		handler := objectRepresentation fetchPointer: 1 ofObject: icTable.
+		handler := objectRepresentation fetchPointer: ICHandlerIndex ofObject: icTable.
 
 		handler > methodZoneBase ifTrue: [ "
 			It's a linked send."
@@ -11907,10 +11857,9 @@ Cogit >> unlinkIfLinkedSendToFree: annotation pc: mcpc ignored: superfluity [
 	(self isSendAnnotation: annotation) ifTrue: [
 		| icTable handler |
 		icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
-		(objectMemory isOopForwarded: icTable) ifTrue: [
-			icTable := objectMemory followForwarded: icTable ].
+		icTable := objectMemory followMaybeForwarded: icTable.
 		"FIXME: self assertValidICTable: icTable"
-		handler := objectRepresentation fetchPointer: 1 ofObject: icTable.
+		handler := objectRepresentation fetchPointer: ICHandlerIndex ofObject: icTable.
 
 		handler > methodZoneBase ifTrue: [ "It's a linked send."
 			self
@@ -11925,22 +11874,34 @@ Cogit >> unlinkIfLinkedSendToFree: annotation pc: mcpc ignored: superfluity [
 
 { #category : 'in-line cacheing' }
 Cogit >> unlinkSendAt: icTable targetMethod: targetMethod sendTable: sendTable [
+
 	<story: #pic>
 	<inline: true>
 	| unlinkedTrampoline |
-	unlinkedTrampoline := sendTable at: (targetMethod cmNumArgs min: NumSendTrampolines - 1).
+	unlinkedTrampoline := sendTable at:
+		                      (targetMethod cmNumArgs min: NumSendTrampolines - 1).
 
 	"FIXME: objectMemory makeICTableUnlinked: icTable withHandler: unlinkedTrampoline"
-	"Selector"
-	objectMemory storePointer: 0 ofObject: icTable withValue: targetMethod selector.
-	"Current handler"
-	objectMemory storePointer: 1 ofObject: icTable withValue: unlinkedTrampoline.
-	"Cache tag 0"
-	objectMemory storePointer: 2 ofObject: icTable withValue: (objectMemory integerObjectOf: 0).
-	"Cache operand 0"
-	objectMemory storePointer: 3 ofObject: icTable withValue: (objectMemory integerObjectOf: 0).
-	"Cache value 0"
-	objectMemory storePointer: 4 ofObject: icTable withValue: (objectMemory integerObjectOf: 0).
+	objectMemory
+		storePointer: ICSelectorIndex
+		ofObject: icTable
+		withValue: targetMethod selector.
+	objectMemory
+		storePointer: ICHandlerIndex
+		ofObject: icTable
+		withValue: unlinkedTrampoline.
+	objectMemory
+		storePointer: ICCacheTag0Index
+		ofObject: icTable
+		withValue: (objectMemory integerObjectOf: 0).
+	objectMemory
+		storePointer: ICCacheOperand0Index
+		ofObject: icTable
+		withValue: (objectMemory integerObjectOf: 0).
+	objectMemory
+		storePointer: ICCacheValue0Index
+		ofObject: icTable
+		withValue: (objectMemory integerObjectOf: 0)
 ]
 
 { #category : 'jit - api' }
@@ -11976,6 +11937,7 @@ self enableCodeZoneWriteDuring:  [
 
 { #category : 'jit - api' }
 Cogit >> unlinkSendsOf: selector isMNUSelector: isMNUSelector [
+	<flag: #workingSet>
 	<api>
 	"Unlink all sends in cog methods. Free all Closed PICs with the selector,
 	 or with an MNU case if isMNUSelector.  First check if any method actually

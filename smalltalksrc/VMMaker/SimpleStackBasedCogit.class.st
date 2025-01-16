@@ -766,6 +766,7 @@ SimpleStackBasedCogit >> compileOpenPIC: selector numArgs: numArgs [
 	"Compile the code for an open PIC.  Perform a probe of the first-level method
 	 lookup cache followed by a call of ceSendFromInLineCacheMiss: if the probe fails."
 	| cacheBaseReg jumpSelectorMiss jumpClassMiss itsAHit jumpBCMethod |
+	<flag: #workingSet>
 	<var: #jumpSelectorMiss type: #'AbstractInstruction *'>
 	<var: #jumpClassMiss type: #'AbstractInstruction *'>
 	<var: #itsAHit type: #'AbstractInstruction *'>
@@ -2371,10 +2372,9 @@ SimpleStackBasedCogit >> genSend: selectorIndex numArgs: numArgs sendTable: send
 		 annotation between: IsDirectedSuperSend and: IsDirectedSuperBindingSend ])
 		ifTrue: [
 			self genMoveConstant: tempOop R: TempReg.
-			"Cache operand 0"
-			objectMemory storePointer: 3 ofObject: icTable withValue: tempOop ].
+			objectMemory storePointer: ICCacheOperand0Index ofObject: icTable withValue: tempOop ].
 
-	objectRepresentation genLoadSlot: 1 sourceReg: ClassReg destReg: Extra0Reg.
+	objectRepresentation genLoadSlot: ICHandlerIndex sourceReg: ClassReg destReg: Extra0Reg.
 	self annotateBytecode: (self CallR: Extra0Reg).
 	self PushR: ReceiverResultReg.
 	^ 0
@@ -2851,41 +2851,6 @@ SimpleStackBasedCogit >> isCallerSavedReg: reg [
 	^self register: reg isInMask: CallerSavedRegisterMask
 ]
 
-{ #category : 'method introspection' }
-SimpleStackBasedCogit >> mapPCDataFor: cogMethod into: arrayObj [
-	"Collect the branch and send data for cogMethod, storing it into arrayObj."
-	<api>
-	<var: #cogMethod type: #'CogMethod *'>
-	| errCode |
-	introspectionDataIndex := 0.
-	introspectionData := arrayObj.
-	cogMethod stackCheckOffset = 0 ifTrue:
-		[self assert: introspectionDataIndex = 0.
-		 cogMethod cmIsFullBlock
-			ifTrue:
-				[objectMemory
-					storePointerUnchecked: 0 ofObject: introspectionData withValue: objectMemory nilObject;
-					storePointerUnchecked: 1 ofObject: introspectionData withValue: (objectMemory integerObjectOf: cbNoSwitchEntryOffset);
-					storePointerUnchecked: 2 ofObject: introspectionData withValue: objectMemory nilObject;
-					storePointerUnchecked: 3 ofObject: introspectionData withValue: (objectMemory integerObjectOf: cbEntryOffset)]
-			ifFalse:
-				[objectMemory
-					storePointerUnchecked: 0 ofObject: introspectionData withValue: objectMemory nilObject;
-					storePointerUnchecked: 1 ofObject: introspectionData withValue: (objectMemory integerObjectOf: cmEntryOffset);
-					storePointerUnchecked: 2 ofObject: introspectionData withValue: objectMemory nilObject;
-					storePointerUnchecked: 3 ofObject: introspectionData withValue: (objectMemory integerObjectOf: cmNoCheckEntryOffset)].
-		 ^4].
-	errCode := self
-					mapFor: cogMethod
-					bcpc: (coInterpreter startPCOfMethod: cogMethod methodObject)
-					performUntil: #pcDataFor:Annotation:Mcpc:Bcpc:Method:
-					arg: cogMethod asVoidPointer.
-	errCode ~= 0 ifTrue:
-		[self assert: errCode = PrimErrNoMemory.
-		 ^-1].
-	^introspectionDataIndex
-]
-
 { #category : 'bytecode generators' }
 SimpleStackBasedCogit >> marshallAbsentReceiverSendArguments: numArgs [
 	self assert: needsFrame.
@@ -2980,47 +2945,6 @@ SimpleStackBasedCogit >> parseV4Exts: nExts priorTo: bcpc in: aMethodObj into: a
 							ifTrue: [extByte - 256]
 							ifFalse: [(extBValue bitShift: 8) + extByte]]].
 	aBinaryBlock value: extAValue value: extBValue
-]
-
-{ #category : 'method introspection' }
-SimpleStackBasedCogit >> pcDataFor: descriptor Annotation: isBackwardBranchAndAnnotation Mcpc: mcpc Bcpc: bcpc Method: cogMethodArg [
-	<var: #descriptor type: #'BytecodeDescriptor *'>
-	<var: #mcpc type: #'char *'>
-	<var: #cogMethodArg type: #'void *'>
-
-	descriptor ifNil: "this is the stackCheck offset"
-		[self assert: introspectionDataIndex = 0.
-		 (self cCoerceSimple: cogMethodArg to: #'CogMethod *') cmIsFullBlock
-			ifTrue:
-				[objectMemory
-					storePointerUnchecked: introspectionDataIndex + 0 ofObject: introspectionData withValue: objectMemory nilObject;
-					storePointerUnchecked: introspectionDataIndex + 1 ofObject: introspectionData withValue: (objectMemory integerObjectOf: cbNoSwitchEntryOffset);
-					storePointerUnchecked: introspectionDataIndex + 2 ofObject: introspectionData withValue: objectMemory nilObject;
-					storePointerUnchecked: introspectionDataIndex + 3 ofObject: introspectionData withValue: (objectMemory integerObjectOf: cbEntryOffset)]
-			ifFalse:
-				[objectMemory
-					storePointerUnchecked: introspectionDataIndex + 0 ofObject: introspectionData withValue: objectMemory nilObject;
-					storePointerUnchecked: introspectionDataIndex + 1 ofObject: introspectionData withValue: (objectMemory integerObjectOf: cmEntryOffset);
-					storePointerUnchecked: introspectionDataIndex + 2 ofObject: introspectionData withValue: objectMemory nilObject;
-					storePointerUnchecked: introspectionDataIndex + 3 ofObject: introspectionData withValue: (objectMemory integerObjectOf: cmNoCheckEntryOffset)].
-		 objectMemory
-			storePointerUnchecked: introspectionDataIndex + 4 ofObject: introspectionData withValue: (objectMemory integerObjectOf: bcpc + 1);
-			storePointerUnchecked: introspectionDataIndex + 5 ofObject: introspectionData withValue: (objectMemory integerObjectOf: (self cCoerceSimple: cogMethodArg to: #'CogMethod *') stackCheckOffset).
-		 introspectionDataIndex := introspectionDataIndex + 6.
-		 ^0].
-
-	(self isPCMappedAnnotation: isBackwardBranchAndAnnotation >> 1) ifTrue:
-		[| actualBcpc actualMcpc |
-		 actualBcpc := (isBackwardBranchAndAnnotation anyMask: 1)
-							ifTrue: [bcpc + 1]
-							ifFalse: [bcpc + descriptor numBytes + 1].
-		 actualMcpc := mcpc asUnsignedInteger - cogMethodArg asUnsignedInteger.
-		 objectMemory
-			storePointerUnchecked: introspectionDataIndex + 0 ofObject: introspectionData withValue: (objectMemory integerObjectOf: actualBcpc);
-			storePointerUnchecked: introspectionDataIndex + 1 ofObject: introspectionData withValue: (objectMemory integerObjectOf: actualMcpc).
-		 introspectionDataIndex := introspectionDataIndex + 2].
-
-	^0
 ]
 
 { #category : 'trampolines' }

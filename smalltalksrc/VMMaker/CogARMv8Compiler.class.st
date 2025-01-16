@@ -4383,6 +4383,13 @@ CogARMv8Compiler >> instructionIsBL: instr [
 ]
 
 { #category : 'testing' }
+CogARMv8Compiler >> instructionIsBLR: instr [
+	"is this a BLR <register> instruction?"
+	self seeAlso: #blr:.
+	^ (instr >> 16) = 2r1101011000111111.
+]
+
+{ #category : 'testing' }
 CogARMv8Compiler >> instructionIsBLX: instr [
 "is this a BLX <targetReg> instruction?"
 	^(self conditionIsNotNever: instr)  and: [(instr bitAnd: 16r0FFFFFF0) = 16r12FFF30]
@@ -4518,6 +4525,15 @@ CogARMv8Compiler >> isCallPrecedingReturnPC: mcpc [
 	| call |
 	call := self instructionBeforeAddress: mcpc.
 	^(self instructionIsBL: call) or:[self instructionIsBLX: call]
+]
+
+{ #category : 'testing' }
+CogARMv8Compiler >> isCallRPrecedingReturnPC: mcpc [
+	"Assuming mcpc is a send return pc answer if the instruction before it is a CallR."
+
+	| call |
+	call := self instructionBeforeAddress: mcpc.
+	^ self instructionIsBLR: call
 ]
 
 { #category : 'testing' }

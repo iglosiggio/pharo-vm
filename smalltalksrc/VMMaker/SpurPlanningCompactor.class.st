@@ -132,6 +132,7 @@ SpurPlanningCompactor >> compact [
 	 Let the segmentManager mark which segments contain pinned objects via notePinned:."
 	| finalPass firstPass |
 	<inline: #never> "for profiling"
+	<flag: #failsWarn "GIV(totalFreeOldSpace) == (totalFreeListBytes())">
 	
 	"Check if compaction is required, and if not, cleanup the heap.
 	A compaction is not required if the heap is considered compacted already."
@@ -474,6 +475,7 @@ SpurPlanningCompactor >> planCompactSavingForwarders [
 	 would make understanding an already tricky algorithm more difficult.  Instead we tolerate the duplication and encourage
 	 the reader to diff the three methods to see where they diverge (e.g. via Cmd-shift-C)."
 	<inline: #never>
+	<flag: #failsWarn "(uint64AtPointer(objOop)) != 0">
 	| toFinger top previousPin startOfPreviousPin |
 	<var: 'o' type: #usqInt>
 	<var: 'top' type: #usqInt>
