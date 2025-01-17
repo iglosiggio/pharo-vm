@@ -2337,6 +2337,7 @@ SimpleStackBasedCogit >> genSend: selectorIndex numArgs: numArgs sendTable: send
 	<inline: false>
 	<var: #sendTable type: #'sqInt *'>
 	<story: #pic>
+	<flag: #workingSet>
 	| annotation icTable selectorOop |
 	self assert: needsFrame.
 
@@ -2348,6 +2349,8 @@ SimpleStackBasedCogit >> genSend: selectorIndex numArgs: numArgs sendTable: send
 		            withUnlinkedHandler:
 		            (sendTable at: (numArgs min: NumSendTrampolines - 1)).
 	icTable ifNil: [ ^ InsufficientCodeSpace ].
+	(objectMemory isYoung: icTable) ifTrue: [ hasYoungReferent := true ].
+	(objectMemory isYoung: selectorOop) ifTrue: [ hasYoungReferent := true ].
 
 	annotation := self annotationForSendTable: sendTable.
 	self assert: (numArgs between: 0 and: 255). "say"
@@ -2362,18 +2365,13 @@ SimpleStackBasedCogit >> genSend: selectorIndex numArgs: numArgs sendTable: send
 	numArgs >= (NumSendTrampolines - 1) ifTrue: [
 		self MoveCq: numArgs R: SendNumArgsReg ].
 
-	"FIXME: Handle moving objects on the GC"
-	(self MoveUniqueCw: icTable R: ClassReg) annotation: annotation.
-	objectRepresentation
-		genEnsureOopInRegNotForwarded: ClassReg
-		scratchReg: TempReg.
-
 	(BytecodeSetHasDirectedSuperSend and: [
 		 annotation between: IsDirectedSuperSend and: IsDirectedSuperBindingSend ])
 		ifTrue: [
 			self genMoveConstant: tempOop R: TempReg.
 			objectMemory storePointer: ICCacheOperand0Index ofObject: icTable withValue: tempOop ].
 
+	(self MoveUniqueCw: icTable R: ClassReg) annotation: annotation.
 	objectRepresentation genLoadSlot: ICHandlerIndex sourceReg: ClassReg destReg: Extra0Reg.
 	self annotateBytecode: (self CallR: Extra0Reg).
 	self PushR: ReceiverResultReg.

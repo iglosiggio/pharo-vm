@@ -9426,8 +9426,17 @@ Cogit >> markLiterals: annotation pc: mcpc method: cogMethod [
 		icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
 		"FIXME: self assertValidICTable: icTable"
 		selector := objectRepresentation fetchPointer: ICSelectorIndex ofObject: icTable.
+
 		"We have to manually mark the selector because the ICTable is opaque (just a byte array)"
-		objectMemory markAndTrace: selector ].
+		selector := objectRepresentation
+			            fetchPointer: ICSelectorIndex
+			            ofObject: icTable.
+		(objectMemory isOopForwarded: selector) ifTrue: [
+			selector := objectMemory followForwarded: selector.
+			objectRepresentation storePointer: ICSelectorIndex ofObject: icTable withValue: selector.
+			(objectMemory isYoung: selector) ifTrue: [
+				methodZone ensureInYoungReferrers: cogMethod ].
+			objectMemory markAndTrace: selector ] ].
 
 	^ 0 "keep scanning"
 ]
@@ -9449,12 +9458,20 @@ Cogit >> markLiteralsAndUnlinkIfUnmarkedSend: annotation pc: mcpc method: cogMet
 			 atpc: mcpc asUnsignedInteger) ifTrue: [ codeModified := true ].
 		icTable := self fetchLiteralAtAnnotatedAddress: mcpc.
 		"FIXME: self assertValidICTable: icTable"
-		selector := objectRepresentation fetchPointer: ICSelectorIndex ofObject: icTable.
-		handler := objectRepresentation fetchPointer: ICHandlerIndex ofObject: icTable.
+
 		"We have to manually mark the selector because the ICTable is opaque (just a byte array)"
-		objectMemory markAndTrace: selector.
+		selector := objectRepresentation
+			            fetchPointer: ICSelectorIndex
+			            ofObject: icTable.
+		(objectMemory isOopForwarded: selector) ifTrue: [
+			selector := objectMemory followForwarded: selector.
+			objectRepresentation storePointer: ICSelectorIndex ofObject: icTable withValue: selector.
+			(objectMemory isYoung: selector) ifTrue: [
+				methodZone ensureInYoungReferrers: cogMethod ].
+			objectMemory markAndTrace: selector ].
 
 		"It's a linked send."
+		handler := objectRepresentation fetchPointer: ICHandlerIndex ofObject: icTable.
 		handler > methodZoneBase ifTrue: [
 			self
 				targetMethodAndSendTableFor: handler
@@ -9518,7 +9535,7 @@ Cogit >> markYoungObjects: annotation pc: mcpc method: cogMethod [
 		"FIXME: self assertValidICTable: icTable"
 		selector := objectRepresentation fetchPointer: ICSelectorIndex ofObject: icTable.
 		"We have to manually mark the selector because the ICTable is opaque (just a byte array)"
-		objectMemory markAndTrace: selector ].
+		objectMemory markAndTraceLiteralIfYoung: selector ].
 
 	^ 0 "keep scanning"
 ]

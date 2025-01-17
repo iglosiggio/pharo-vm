@@ -2008,6 +2008,8 @@ StackToRegisterMappingCogit >> genMarshalledSend: selectorIndex numArgs: numArgs
 		            withUnlinkedHandler:
 		            (sendTable at: (numArgs min: NumSendTrampolines - 1)).
 	icTable ifNil: [ ^ InsufficientCodeSpace ].
+	(objectMemory isYoung: icTable) ifTrue: [ hasYoungReferent := true ].
+	(objectMemory isYoung: selectorOop) ifTrue: [ hasYoungReferent := true ].
 
 	annotation := self annotationForSendTable: sendTable.
 	"Deal with stale super sends; see SpurMemoryManager's class comment."
@@ -2020,18 +2022,13 @@ StackToRegisterMappingCogit >> genMarshalledSend: selectorIndex numArgs: numArgs
 	numArgs >= (NumSendTrampolines - 1) ifTrue: [
 		self MoveCq: numArgs R: SendNumArgsReg ].
 
-	"FIXME: Handle moving objects on the GC"
-	(self MoveUniqueCw: icTable R: ClassReg) annotation: annotation.
-	objectRepresentation
-		genEnsureOopInRegNotForwarded: ClassReg
-		scratchReg: TempReg.
-
 	(BytecodeSetHasDirectedSuperSend and: [
 		 annotation between: IsDirectedSuperSend and: IsDirectedSuperBindingSend ])
 		ifTrue: [
 			self genMoveConstant: tempOop R: TempReg.
 			objectMemory storePointer: ICCacheOperand0Index ofObject: icTable withValue: tempOop ].
 
+	(self MoveUniqueCw: icTable R: ClassReg) annotation: annotation.
 	objectRepresentation genLoadSlot: ICHandlerIndex sourceReg: ClassReg destReg: Extra0Reg.
 	self annotateBytecode: (self CallR: Extra0Reg).
 

@@ -79,6 +79,15 @@ PharoVMMaker class >> generate: anInterpreterClass outputDirectory: aDirectory [
 ]
 
 { #category : 'generation' }
+PharoVMMaker class >> generate: anInterpreterClass outputDirectory: aDirectory options: options [
+
+	self new
+		options: options;
+		outputDirectory: aDirectory;
+		perform: #generate , anInterpreterClass asSymbol
+]
+
+{ #category : 'generation' }
 PharoVMMaker class >> on: anInterpreterClass [
 
 	^ self

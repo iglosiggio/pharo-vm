@@ -1902,9 +1902,7 @@ SpurMemoryManager >> allocateICTable: selectorOop withUnlinkedHandler: unlinkedT
 		          allocateSlots: tableSlotCount
 		          format:
 		          (self byteFormatForNumBytes: tableSlotCount * self bytesPerOop)
-		          classIndex: ClassByteArrayCompactIndex
-		          isPinned: false
-		          isOldSpace: true.
+		          classIndex: ClassByteArrayCompactIndex.
 	result ifNotNil: [
 		self storePointer: ICSelectorIndex ofObject: result withValue: selectorOop.
 		self
