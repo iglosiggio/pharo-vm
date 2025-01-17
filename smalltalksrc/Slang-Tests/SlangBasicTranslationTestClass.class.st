@@ -51,6 +51,15 @@ SlangBasicTranslationTestClass >> initializationOptions [
 ]
 
 { #category : 'inline' }
+SlangBasicTranslationTestClass >> methodCallingCFunction [
+
+	self cCall: 'function' withArguments: { 
+		"The inline of functions as arguments of cCall is not implemented yet.
+		So, it should not be done right now"
+		self methodWithInlinePragma }
+]
+
+{ #category : 'inline' }
 SlangBasicTranslationTestClass >> methodCallingInAssignemtMethodWithCCoerceInReturn [
 
 	| i |
@@ -100,6 +109,8 @@ SlangBasicTranslationTestClass >> methodDefiningConflictingVariable [
 
 	<var: 'methodWithoutReturn' type: 'char *'>
 	| methodWithoutReturn |
+	
+	^ methodWithoutReturn
 ]
 
 { #category : 'inline' }

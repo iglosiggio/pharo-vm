@@ -129,7 +129,7 @@ VMMachineSimulatorTest >> testMemoryAccessExceptionHandledCountIsRespected [
 		until: lastInstruction address
 		timeout: 0
 		count: 10. 
-		
+
 	self 
 		assert: self machineSimulator instructionPointerRegisterValue 
 		equals: jumpInstruction address
@@ -372,7 +372,7 @@ VMMachineSimulatorTest >> testMemoryAccessExceptionInstructionPointerInCorrectAd
 		lastInstruction := cogit Call: cogit methodZoneBase + 16rFFFFF0.  ].
 	
 	invalidAddressHandled := false.
-	
+
 	self machineSimulator invalidAccessHandler: [:invalidAccess | 
 		invalidAddressHandled := true.
 		self 
