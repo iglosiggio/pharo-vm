@@ -5436,7 +5436,6 @@ Cogit >> compileCogFullBlockMethod: numCopied [
 	inBlock := InFullBlock.
 	postCompileHook := nil.
 	maxLitIndex := -1.
-	self assert: (coInterpreter primitiveIndexOf: methodObj) = 0 "Guille dice que esto es un falso positivo???".
 	initialPC := coInterpreter startPCOfMethod: methodObj.
 	"initial estimate.  Actual endPC is determined in scanMethod."
 	endPC := objectMemory numBytesOf: methodObj.
