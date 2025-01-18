@@ -1703,7 +1703,6 @@ SpurMemoryManager >> allOldSpaceEntitiesForCompactingFrom: initialObject to: fin
 { #category : 'object enumeration' }
 SpurMemoryManager >> allOldSpaceEntitiesFrom: initialObject do: aBlock [
 
-	<flag: #failsWarn "(uint64AtPointer(objOop21)) != 0">
 	| prevObj prevPrevObj objOop |
 	self assert: (memoryMap isOldObject: initialObject).
 	prevPrevObj := prevObj := nil.
@@ -2660,9 +2659,6 @@ SpurMemoryManager >> assertFreeChunkPrevHeadZero [
 { #category : 'free space' }
 SpurMemoryManager >> assertInnerValidFreeObject: objOop [
 	<inline: #never> "we don't want to inline so we can nest that in an assertion with the return true so the production VM does not generate any code here, while in simulation, the code breaks on the assertion we want to."
-	<flag: #failsWarn "(bytesInObject(treeNode)) >= ((numFreeLists()) * (allocationUnit()))">
-	<flag: #failsWarn "(chunk == 0) || ((isFreeOop(chunk)) && (isLargeFreeObject(chunk)))">
-	<flag: #failsWarn "(chunk == 0) || ((isFreeOop(chunk)) && (isLargeFreeObject(chunk)))">
 	| chunk index |
 	self assert: (self isFreeOop: objOop).
 	self assert: (self oop: (self addressAfter: objOop) isLessThanOrEqualTo: memoryMap oldSpaceEnd).
@@ -3185,7 +3181,6 @@ SpurMemoryManager >> checkFreeSpace [
 
 { #category : 'debug support' }
 SpurMemoryManager >> checkFreeSpace: gcModes [
-	<flag: #failsWarn "GIV(totalFreeOldSpace) == (totalFreeListBytes())">
 	self assert: self bitsSetInFreeSpaceMaskForAllFreeLists.
 	self assert: totalFreeOldSpace = self totalFreeListBytes.
 	(gcModes > 0
@@ -7581,7 +7576,6 @@ SpurMemoryManager >> isEnumerableObject: objOop [
 	 Non-objects should be excluded; these are bridges and free chunks."
 	| classIndex |
 	<inline: true>
-	<flag: #failsWarn "((uint64AtPointer(objOop)) != 0) && (classIndex < (GIV(numClassTablePages) * (classTablePageSize())))">
 	classIndex := self classIndexOf: objOop.
 	self assert: ((self uint64AtPointer: objOop) ~= 0
 				  and: [classIndex < (numClassTablePages * self classTablePageSize)]).
@@ -13181,8 +13175,6 @@ SpurMemoryManager >> totalFreeListBytes [
 	 on the free lists/tree, and checks that the tree is valid.  It is used mainly by checkFreeSpace."
 	| totalFreeBytes bytesInChunk listNode nextNode |	
 	<var: 'totalFreeBytes' type: #'sqInt'>
-	<flag: #failsWarn "(bytesInObject(treeNode2)) >= ((numFreeLists()) * (allocationUnit()))">
-	<flag: #failsWarn "(bytesInChunk / (allocationUnit())) >= (numFreeLists())">
 
 	totalFreeBytes := 0.
 	1 to: self numFreeLists - 1 do:
