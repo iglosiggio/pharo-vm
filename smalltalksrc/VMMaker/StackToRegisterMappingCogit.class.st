@@ -3921,7 +3921,6 @@ StackToRegisterMappingCogit >> profilingDataFor: descriptor Annotation: isBackwa
 	(self isSendAnnotation: annotation) ifFalse: [ "not a send" ^ 0 ].
 
 	icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
-	icTable := objectMemory followMaybeForwarded: icTable.
 	"FIXME: self assertValidICTable: icTable"
 	handler := objectRepresentation fetchPointer: ICHandlerIndex ofObject: icTable.
 	handler > methodZoneBase ifFalse: [ "send is not linked" ^ 0 ].

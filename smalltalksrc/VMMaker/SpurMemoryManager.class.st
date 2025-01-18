@@ -5672,8 +5672,6 @@ SpurMemoryManager >> followForwardedObjectFields: objOop toDepth: depth [
 
 { #category : 'forwarding' }
 SpurMemoryManager >> followMaybeForwarded: objOop [
-	"FIXME: Should we copy this to cogit so it can be inlined there?"
-	<api>
 	<inline: true>
 	^(self isOopForwarded: objOop)
 		ifTrue: [self noInlineFollowForwarded: objOop]

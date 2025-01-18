@@ -5043,7 +5043,6 @@ Cogit >> collectCogConstituentFor: descriptor Annotation: isBackwardBranchAndAnn
 		 self isSendAnnotation: isBackwardBranchAndAnnotation >> 1 ]) ifTrue: [
 		| icTable handler |
 		icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
-		icTable := objectMemory followMaybeForwarded: icTable.
 		"FIXME: self assertValidICTable: icTable"
 		handler := objectRepresentation fetchPointer: ICHandlerIndex ofObject: icTable.
 		handler > methodZoneBase ifTrue: [ "send is linked"
@@ -8278,7 +8277,6 @@ Cogit >> incrementUsageOfTargetIfLinkedSend: annotation mcpc: mcpc ignored: igno
 	(self isSendAnnotation: annotation) ifTrue: [
 		| icTable handler |
 		icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
-		icTable := objectMemory followMaybeForwarded: icTable.
 		"FIXME: self assertValidICTable: icTable"
 		handler := objectRepresentation fetchPointer: ICHandlerIndex ofObject: icTable.
 		handler > methodZoneBase ifTrue: [ "
@@ -9530,9 +9528,8 @@ Cogit >> markYoungObjects: annotation pc: mcpc method: cogMethod [
 		| icTable selector |
 		icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
 		objectRepresentation markAndTraceLiteralIfYoung: icTable.
-		"The ICTable is an opaque object. We should mark the selector by hand"
-		icTable := objectMemory followMaybeForwarded: icTable.
 		"FIXME: self assertValidICTable: icTable"
+		"The ICTable is an opaque object. We should mark the selector by hand"
 		selector := objectRepresentation fetchPointer: ICSelectorIndex ofObject: icTable.
 		"We have to manually mark the selector because the ICTable is opaque (just a byte array)"
 		objectMemory markAndTraceLiteralIfYoung: selector ].
@@ -10859,7 +10856,6 @@ Cogit >> relocateIfCallOrMethodReference: annotation mcpc: mcpc delta: refDelta 
 	(self isSendAnnotation: annotation) ifTrue: [
 		| icTable handler |
 		icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
-		icTable := objectMemory followMaybeForwarded: icTable.
 		"FIXME: self assertValidICTable: icTable"
 		handler := objectRepresentation fetchPointer: ICHandlerIndex ofObject: icTable.
 
@@ -11624,7 +11620,6 @@ Cogit >> unlinkIfFreeOrLinkedSend: annotation pc: mcpc of: theSelector [
 	(self isSendAnnotation: annotation) ifTrue: [
 		| icTable handler |
 		icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
-		icTable := objectMemory followMaybeForwarded: icTable.
 		"FIXME: self assertValidICTable: icTable"
 		handler := objectRepresentation fetchPointer: ICHandlerIndex ofObject: icTable.
 
@@ -11648,7 +11643,6 @@ Cogit >> unlinkIfInvalidClassSend: annotation pc: mcpc ignored: superfluity [
 	(self isSendAnnotation: annotation) ifTrue: [
 		| icTable handler cacheTag |
 		icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
-		icTable := objectMemory followMaybeForwarded: icTable.
 		"FIXME: self assertValidICTable: icTable"
 		handler := objectRepresentation fetchPointer: ICHandlerIndex ofObject: icTable.
 		cacheTag := objectRepresentation fetchPointer: ICCacheTag0Index ofObject: icTable.
@@ -11675,7 +11669,6 @@ Cogit >> unlinkIfLinkedSend: annotation pc: mcpc to: theCogMethod [
 	(self isSendAnnotation: annotation) ifTrue: [
 		| icTable handler |
 		icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
-		icTable := objectMemory followMaybeForwarded: icTable.
 		"FIXME: self assertValidICTable: icTable"
 		handler := objectRepresentation fetchPointer: ICHandlerIndex ofObject: icTable.
 
@@ -11698,7 +11691,6 @@ Cogit >> unlinkIfLinkedSendToFree: annotation pc: mcpc ignored: superfluity [
 	(self isSendAnnotation: annotation) ifTrue: [
 		| icTable handler |
 		icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
-		icTable := objectMemory followMaybeForwarded: icTable.
 		"FIXME: self assertValidICTable: icTable"
 		handler := objectRepresentation fetchPointer: ICHandlerIndex ofObject: icTable.
 

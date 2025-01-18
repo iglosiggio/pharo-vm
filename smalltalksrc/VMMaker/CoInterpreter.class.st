@@ -1410,7 +1410,7 @@ CoInterpreter >> ceReturnToInterpreter: anOop [
 ]
 
 { #category : 'trampolines' }
-CoInterpreter >> ceSend: maybeForwardedICTable above: methodClass to: receiver numArgs: numArgs [
+CoInterpreter >> ceSend: icTable above: methodClass to: receiver numArgs: numArgs [
 	"Entry-point for an unlinked directed super send in a CogMethod.
 	 methodClass is the class above which to start the lookup.
 	 Smalltalk stack looks like:
@@ -1425,12 +1425,11 @@ CoInterpreter >> ceSend: maybeForwardedICTable above: methodClass to: receiver n
 	| classTag classObj |
 	self assert: (objectMemory addressCouldBeOop: receiver).
 
-	classObj := self superclassOf:
-		            (objectMemory followMaybeForwarded: methodClass).
+	classObj := self superclassOf: (objectMemory followMaybeForwarded: methodClass).
 	classTag := objectMemory classTagForClass: classObj.
 
 	self
-		handleUnlinkedSendFor: maybeForwardedICTable
+		handleUnlinkedSendFor: icTable
 		to: receiver
 		isSuper: true
 		classTag: classTag
@@ -1440,24 +1439,27 @@ CoInterpreter >> ceSend: maybeForwardedICTable above: methodClass to: receiver n
 ]
 
 { #category : 'trampolines' }
-CoInterpreter >> ceSend: maybeForwardedICTable aboveClassBinding: methodClassBinding to: rcvr numArgs: numArgs [
+CoInterpreter >> ceSend: icTable aboveClassBinding: methodClassBinding to: rcvr numArgs: numArgs [
 	"Entry-point for an unlinked directed super send in a CogMethod.
 	 methodClassBinding is an association whose value is the class above which to start the lookup.
 	 Smalltalk stack looks like:
                    receiver
 	                args
 	     head sp -> sender return pc"
+
 	<api>
 	<option: #BytecodeSetHasDirectedSuperSend>
-	self ceSend: maybeForwardedICTable
-		above: (self fetchPointer: ValueIndex
-					ofObject: (objectMemory followMaybeForwarded: methodClassBinding))
+	self
+		ceSend: icTable
+		above: (objectMemory
+				 fetchPointer: ValueIndex
+				 ofObject: (objectMemory followMaybeForwarded: methodClassBinding))
 		to: rcvr
 		numArgs: numArgs
 ]
 
 { #category : 'trampolines' }
-CoInterpreter >> ceSend: maybeForwardedICTable super: isSuperSend to: maybeForwardedReceiver numArgs: numArgs [
+CoInterpreter >> ceSend: icTable super: isSuperSend to: maybeForwardedReceiver numArgs: numArgs [
 	"Entry-point for an unlinked send in a CogMethod.
 	 Smalltalk stack looks like:
                    receiver
@@ -1481,7 +1483,7 @@ CoInterpreter >> ceSend: maybeForwardedICTable super: isSuperSend to: maybeForwa
 				classTag := objectMemory fetchClassTagOf: receiver ].
 
 			self
-				handleUnlinkedSendFor: maybeForwardedICTable
+				handleUnlinkedSendFor: icTable
 				to: receiver
 				isSuper: isSuperSend
 				classTag: classTag
@@ -1498,7 +1500,7 @@ CoInterpreter >> ceSend: maybeForwardedICTable super: isSuperSend to: maybeForwa
 			classTag := objectMemory classTagForClass: classObj.
 
 			self
-				handleUnlinkedSendFor: maybeForwardedICTable
+				handleUnlinkedSendFor: icTable
 				to: maybeForwardedReceiver
 				isSuper: isSuperSend
 				classTag: classTag
@@ -2886,7 +2888,7 @@ CoInterpreter >> handleMNU: selectorIndex InMachineCodeTo: rcvr classForMessage:
 ]
 
 { #category : 'trampolines' }
-CoInterpreter >> handleUnlinkedSendFor: maybeForwardedICTable to: receiver isSuper: isSuper classTag: classTag numArgs: numArgs classObjGetter: classObjGetter [
+CoInterpreter >> handleUnlinkedSendFor: icTable to: receiver isSuper: isSuper classTag: classTag numArgs: numArgs classObjGetter: classObjGetter [
 	"Entry-point for unlinked sends in a CogMethod. Inlined into every related
 	 trampoline (regular sends, super sends, directed super sends).
 
@@ -2922,15 +2924,12 @@ CoInterpreter >> handleUnlinkedSendFor: maybeForwardedICTable to: receiver isSup
 	<inline: #always>
 	<var: #cogMethod type: #'CogMethod *'>
 	<var: #mnuPIC type: #'CogMethod *'>
-	| icTable selector found cogMethod |
+	| selector found cogMethod |
 	cogit assertCStackWellAligned.
 	self deny: (objectMemory isForwardedClassTag: classTag).
 	self assert: (objectMemory isNotForwarded: receiver).
+	"FIXME: self assertValidICTable: icTable"
 	argumentCount := numArgs.
-
-	icTable := maybeForwardedICTable.
-	(objectMemory isOopForwarded: icTable) ifTrue: [
-		icTable := objectMemory followForwarded: icTable ].
 
 	selector := objectMemory fetchPointer: ICSelectorIndex ofObject: icTable.
 	(objectMemory isOopForwarded: icTable) ifTrue: [
