@@ -198,20 +198,6 @@ CogMethodZone >> clearCogCompiledCode [
 		self manageFrom: baseAddress to: limitAddress ]
 ]
 
-{ #category : 'compaction' }
-CogMethodZone >> clearSavedPICUsageCount: cogMethod [
-	"For Sista, where we want PICs to last so they can be observed, we need to keep PICs unless
-	 they are definitely unused.  So we need to identify unused PICs.  So in planCompact, zero the
-	 usage counts of all PICs, saving the actual usage count in blockEntryOffset.  Then in
-	 relocateMethodsPreCompaction (actually in relocateIfCallOrMethodReference:mcpc:delta:)
-	 restore the usage counts of used PICs.  Finally in compactCompiledCode, clear the blockEntryOffset
-	 of the unused PICs; they will then have a zero count and be reclaimed in the next code compaction."
-	<var: #cogMethod type: #'CogMethod *'>
-	<option: #SistaVM>
-	cogMethod cmType = CMPolymorphicIC ifTrue:
-		[cogMethod picUsage: 0]
-]
-
 { #category : 'printing' }
 CogMethodZone >> cogMethodsSelect: aBlock [
 	<doNotGenerate>
@@ -249,7 +235,6 @@ CogMethodZone >> compactCompiledCode [
 			source objectHeader: objectHeaderValue.
 			source cmUsageCount > 0 ifTrue: [
 				source cmUsageCount: source cmUsageCount // 2 ].
-			SistaVM ifTrue: [ self clearSavedPICUsageCount: source ].
 			source cmType = CMMegamorphicIC ifTrue: [
 				self addToMegamorphicICList: source ].
 			methodCount := methodCount + 1.
@@ -280,7 +265,6 @@ CogMethodZone >> compactCompiledCode [
 								(cogit noAssertMethodClassAssociationOf: dest methodObject)
 								= objectMemory nilObject ] ]
 				ifFalse: [
-					SistaVM ifTrue: [ self clearSavedPICUsageCount: dest ].
 					dest cmType = CMMegamorphicIC ifTrue: [
 						self addToMegamorphicICList: dest ] ].
 			dest cmUsageCount > 0 ifTrue: [
@@ -601,9 +585,7 @@ CogMethodZone >> planCompaction [
 			ifTrue: [delta := delta - cogMethod blockSize]
 			ifFalse:
 				[self assert: (cogit cogMethodDoesntLookKosher: cogMethod) = 0.
-				 cogMethod objectHeader: delta.
-				 SistaVM ifTrue:
-					[self savePICUsageCount: cogMethod]].
+				 cogMethod objectHeader: delta].
 		 cogMethod := self methodAfter: cogMethod]
 ]
 
@@ -621,11 +603,10 @@ CogMethodZone >> printCogMethods [
 			caseOf: {
 			[CMFree]		->	[nf := nf + 1].
 			[CMMethod]	->	[nm := nm + 1].
-			[CMPolymorphicIC]	->	[nc := nc + 1].
 			[CMMegamorphicIC]	->	[no:= no+ 1] }
 			otherwise: [nu := nu + 1].
 		 cogMethod := self methodAfter: cogMethod].
-	coInterpreter print: 'CMMethod '; printNum: nm;  print: ' CMClosedPIC '; printNum: nc;  print: ' CMOpenPIC '; printNum: no;  print: ' CMFree '; printNum: nf.
+	coInterpreter print: 'CMMethod '; printNum: nm; print: ' CMOpenPIC '; printNum: no;  print: ' CMFree '; printNum: nf.
 	nu > 0 ifTrue:
 		[coInterpreter print: ' UNKNOWN '; printNum: nu].
 	coInterpreter print: ' total '; printNum: nm+nc+no+nf+nu; cr
@@ -803,17 +784,16 @@ CogMethodZone >> relocateMethodsPreCompaction [
 	 stored in their objectHeader fields.  Relocate all relative calls so that after
 	 the compaction of both the method containing each call and the call target
 	 the calls invoke the same target."
-	| cogMethod |
+
 	<var: #cogMethod type: #'CogMethod *'>
+	| cogMethod |
 	cogMethod := cogit cCoerceSimple: baseAddress to: #'CogMethod *'.
-	[cogMethod asUnsignedInteger < mzFreeStart] whileTrue:
-		[cogMethod cmType ~= CMFree ifTrue:
-			[cogMethod cmType = CMPolymorphicIC
-				ifTrue: [cogit relocateCallsInClosedPIC: cogMethod]
-				ifFalse: [cogit relocateCallsAndSelfReferencesInMethod: cogMethod]].
-		 cogMethod := self methodAfter: cogMethod].
+	[ cogMethod asUnsignedInteger < mzFreeStart ] whileTrue: [
+		cogMethod cmType ~= CMFree ifTrue: [
+			cogit relocateCallsAndSelfReferencesInMethod: cogMethod ].
+		cogMethod := self methodAfter: cogMethod ].
 	self relocateAndPruneYoungReferrers.
-	^true
+	^ true
 ]
 
 { #category : 'accessing' }
@@ -841,23 +821,6 @@ CogMethodZone >> removeFromOpenPICList: anOpenPIC [
 	  true] whileTrue
 ]
 
-{ #category : 'compaction' }
-CogMethodZone >> restorePICUsageCount: cogMethod [
-	"For Sista, where we want PICs to last so they can be observed, we need to keep PICs unless
-	 they are definitely unused.  So we need to identify unused PICs.  So in planCompact, zero the
-	 usage counts of all PICs, saving the actual usage count in blockEntryOffset.  Then in
-	 relocateMethodsPreCompaction (actually in relocateIfCallOrMethodReference:mcpc:delta:)
-	 restore the usage counts of used PICs.  Finally in compactCompiledCode, clear the blockEntryOffset
-	 of the unused PICs; they will then have a zero count and be reclaimed in the next code compaction."
-	<var: #cogMethod type: #'CogMethod *'>
-	<option: #SistaVM>
-	(cogMethod cmType = CMPolymorphicIC
-	 and: [cogMethod picUsage ~= 0]) ifTrue:
-		[cogMethod
-			cmUsageCount: cogMethod picUsage;
-			picUsage: 0]
-]
-
 { #category : 'accessing' }
 CogMethodZone >> roundUpAddress: address [
 	<returnTypeC: #'void *'>
@@ -869,22 +832,6 @@ CogMethodZone >> roundUpAddress: address [
 CogMethodZone >> roundUpLength: numBytes [
 	<cmacro: '(numBytes) ((numBytes) + 7 & -8)'>
 	^numBytes + 7 bitAnd: -8
-]
-
-{ #category : 'compaction' }
-CogMethodZone >> savePICUsageCount: cogMethod [
-	"For Sista, where we want PICs to last so they can be observed, we need to keep PICs unless
-	 they are definitely unused.  So we need to identify unused PICs.  So in planCompact, zero the
-	 usage counts of all PICs, saving the actual usage count in blockEntryOffset.  Then in
-	 relocateMethodsPreCompaction (actually in relocateIfCallOrMethodReference:mcpc:delta:)
-	 restore the usage counts of used PICs.  Finally in compactCompiledCode, clear the blockEntryOffset
-	 of the unused PICs; they will then have a zero count and be reclaimed in the next code compaction."
-	<var: #cogMethod type: #'CogMethod *'>
-	<option: #SistaVM>
-	cogMethod cmType = CMPolymorphicIC ifTrue:
-		[cogMethod
-			picUsage: cogMethod cmUsageCount;
-			cmUsageCount: 0]
 ]
 
 { #category : 'initialization' }

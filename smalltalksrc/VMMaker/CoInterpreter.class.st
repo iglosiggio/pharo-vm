@@ -1190,7 +1190,7 @@ CoInterpreter >> ceInterpretMethodFromPIC: aMethodObj receiver: rcvr [
 	<var: #pic type: #'CogMethod *'>
 	"pop off inner return and locate open or closed PIC"
 	pic := self cCoerceSimple: self popStack - cogit interpretOffset to: #'CogMethod *'.
-	self assert: (pic cmType = CMMegamorphicIC or: [pic cmType = CMPolymorphicIC]).
+	self assert: pic cmType = CMMegamorphicIC.
 	"If found from an open PIC then it must be an uncogged method and, since it's been found
 	 in the method cache, should be cogged if possible.  If found from a closed PIC then at the
 	 time the closed PIC was created the method was uncoggable, either because there was
@@ -1217,18 +1217,18 @@ CoInterpreter >> ceInterpretMethodFromPIC: aMethodObj receiver: rcvr [
 { #category : 'trampolines' }
 CoInterpreter >> ceMNUFromPICMNUMethod: aMethodObj receiver: rcvr [
 	<api>
-	| cPIC primitiveIndex |
+	| mPIC primitiveIndex |
 	<flag: #forDeletion>
-	<var: #cPIC type: #'CogMethod *'>
+	<var: #mPIC type: #'CogMethod *'>
 	self error: 'should be unreachable'.
 	self assert: (objectMemory addressCouldBeOop: rcvr).
 	self assert: (aMethodObj = 0
 				or: [(objectMemory addressCouldBeObj: aMethodObj)
 					and: [objectMemory isOopCompiledMethod: aMethodObj]]).
-	cPIC := self cCoerceSimple: self popStack - cogit mnuOffset to: #'CogMethod *'.
-	self assert: (cPIC cmType = CMPolymorphicIC or: [cPIC cmType = CMMegamorphicIC]).
-	argumentCount := cPIC cmNumArgs.
-	messageSelector := cPIC selector.
+	mPIC := self cCoerceSimple: self popStack - cogit mnuOffset to: #'CogMethod *'.
+	self assert: mPIC cmType = CMMegamorphicIC.
+	argumentCount := mPIC cmNumArgs.
+	messageSelector := mPIC selector.
 	aMethodObj ~= 0 ifTrue:
 		[instructionPointer := self popStack.
 		self createActualMessageTo: (objectMemory fetchClassOf: rcvr).
@@ -4237,9 +4237,6 @@ CoInterpreter >> printCogMethod: cogMethod [
 							header: cogMethod methodHeader.
 		 primitive ~= 0 ifTrue:
 			[self print: ' prim '; printNum: primitive]].
-	cogMethod cmType = CMPolymorphicIC ifTrue:
-		[self print: ': Closed PIC N: ';
-			printHex: cogMethod cPICNumCases].
 	cogMethod cmType = CMMegamorphicIC ifTrue:
 		[self print: ': Open PIC '].
 	self print: ' selector: '; printHex: cogMethod selector.

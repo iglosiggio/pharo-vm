@@ -59,12 +59,6 @@ InLineLiteralsManager >> dumpLiterals: generateBranchAround [
 	<inline: true>
 ]
 
-{ #category : 'closed PIC parsing' }
-InLineLiteralsManager >> endSizeOffset [
-	"return the offset need from the cPICEndSize in order to point to just after the last instruction - here that means 0"
-	^0
-]
-
 { #category : 'garbage collection' }
 InLineLiteralsManager >> fetchLiteralAtAnnotatedAddress: address using: instruction [
 	"Normally literals are embedded in instructions and the annotation is at the start of

@@ -157,12 +157,6 @@ OutOfLineLiteralsManager >> dumpLiterals: generateBranchAround [
 	lastDumpedLiteralIndex := nextLiteralIndex
 ]
 
-{ #category : 'closed PIC parsing' }
-OutOfLineLiteralsManager >> endSizeOffset [
-	"return the offset need from the cPICEndSize in order to point to just after the last instruction - here that means bytesPerOop * list size"
-	^nextLiteralIndex * objectMemory bytesPerOop
-]
-
 { #category : 'garbage collection' }
 OutOfLineLiteralsManager >> fetchLiteralAtAnnotatedAddress: address using: instruction [
 	"With out-of-line literals, the IsObjectReference annotation refers to

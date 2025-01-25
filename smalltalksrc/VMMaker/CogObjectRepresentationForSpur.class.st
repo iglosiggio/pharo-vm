@@ -3007,11 +3007,6 @@ CogObjectRepresentationForSpur >> initialize [
 	ceStoreTrampolines := (CArrayAccessor on: (Array new: NumStoreTrampolines))
 ]
 
-{ #category : 'in-line cacheing' }
-CogObjectRepresentationForSpur >> inlineCacheTagsMayBeObjects [
-	^false
-]
-
 { #category : 'object representation' }
 CogObjectRepresentationForSpur >> isSmallIntegerTagNonZero [
 	^true

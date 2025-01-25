@@ -263,17 +263,6 @@ SimpleStackBasedCogit >> bytecodePC: anInteger [
 	bytecodePC := anInteger 
 ]
 
-{ #category : 'trampolines' }
-SimpleStackBasedCogit >> cPICMissTrampolineFor: numArgs [
-	^ceCPICMissTrampoline
-]
-
-{ #category : 'accessing' }
-SimpleStackBasedCogit >> ceCPICMissTrampoline: anAddress [ 
-	
-	ceCPICMissTrampoline := anAddress
-]
-
 { #category : 'simulation only' }
 SimpleStackBasedCogit >> ceShortCutTraceBlockActivation: aProcessorSimulationTrap [
 	self shortcutTrampoline: aProcessorSimulationTrap
@@ -2807,11 +2796,6 @@ SimpleStackBasedCogit >> generateMissAbortTrampolines [
 
 	ceMethodAbortTrampoline := self genMethodAbortTrampoline.
 	cePICAbortTrampoline := self genPICAbortTrampoline.
-	ceCPICMissTrampoline := self genTrampolineFor: #ceCPICMiss:receiver:icTable:
-								called: 'ceCPICMissTrampoline'
-								arg: Extra0Reg
-								arg: ReceiverResultReg
-								arg: ClassReg.
 	ceReapAndResetErrorCodeTrampoline := self genTrampolineFor: #ceReapAndResetErrorCodeFor:
 												called: 'ceReapAndResetErrorCodeTrampoline'
 												arg: ClassReg

@@ -121,21 +121,11 @@ CogMethodSurrogate >> at: anAddress objectMemory: objectMemory cogit: aCogit [
 ]
 
 { #category : 'accessing' }
-CogMethodSurrogate >> cPICNumCases [
-	^self stackCheckOffset
-]
-
-{ #category : 'accessing' }
-CogMethodSurrogate >> cPICNumCases: n [
-	^self stackCheckOffset: n
-]
-
-{ #category : 'accessing' }
 CogMethodSurrogate >> cmIsFullBlock [
-	"Answer the value of cpicHasMNUCaseOrCMIsFullBlock"
+	"Answer the value of isFullBlock"
 
 	^SistaV1BytecodeSet
-		ifTrue: [self cpicHasMNUCaseOrCMIsFullBlock]
+		ifTrue: [self isFullBlock]
 		ifFalse: [false]
 ]
 
@@ -143,23 +133,6 @@ CogMethodSurrogate >> cmIsFullBlock [
 CogMethodSurrogate >> containsAddress: anAddress [
 	^address <= anAddress asUnsignedInteger
 	  and: [address + self blockSize >= anAddress asUnsignedInteger]
-]
-
-{ #category : 'accessing' }
-CogMethodSurrogate >> cpicHasMNUCase [
-	"Answer if the receiver has an MNU case."
-	<inline: true>
-
-	^SistaV1BytecodeSet
-		ifTrue: [self cpicHasMNUCaseOrCMIsFullBlock and: [self cmType = CMPolymorphicIC]]
-		ifFalse: [self cpicHasMNUCaseOrCMIsFullBlock]
-]
-
-{ #category : 'accessing' }
-CogMethodSurrogate >> cpicHasMNUCase: anObject [
-	"Set if the receiver has an MNU case."
-
-	^self cpicHasMNUCaseOrCMIsFullBlock: anObject
 ]
 
 { #category : 'testing' }

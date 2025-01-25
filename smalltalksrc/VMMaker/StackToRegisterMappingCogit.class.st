@@ -852,11 +852,6 @@ StackToRegisterMappingCogit >> bytecodeFixupClass [
 	^CogSSBytecodeFixup
 ]
 
-{ #category : 'trampolines' }
-StackToRegisterMappingCogit >> cPICMissTrampolineFor: numArgs [
-	^picMissTrampolines at: (numArgs min: self numRegArgs + 1)
-]
-
 { #category : 'debugging' }
 StackToRegisterMappingCogit >> callCogCodePopReceiverArg0Regs [
 	"This is a static version of ceCallCogCodePopReceiverArg0Regs
@@ -2095,28 +2090,6 @@ StackToRegisterMappingCogit >> genPICAbortTrampolineFor: numArgs [
 	^self genInnerPICAbortTrampoline: (self trampolineName: 'cePICAbort' numRegArgs: numArgs)
 ]
 
-{ #category : 'initialization' }
-StackToRegisterMappingCogit >> genPICMissTrampolineFor: numArgs [
-	<inline: false>
-	| startAddress |
-	startAddress := methodZoneBase.
-	self zeroOpcodeIndex.
-	"N.B. a closed PIC jumps to the miss routine, not calls it, so there is only one retpc on the stack."
-	backEnd genPushRegisterArgsForNumArgs: numArgs scratchReg: SendNumArgsReg.
-	self genTrampolineFor: #ceCPICMiss:receiver:icTable:
-		called: (self trampolineName: 'cePICMiss' numRegArgs: numArgs)
-		numArgs: 3
-		arg: Extra0Reg
-		arg: ReceiverResultReg
-		arg: ClassReg
-		arg: nil
-		regsToSave: self emptyRegisterMask
-		pushLinkReg: true
-		resultReg: NoReg
-		appendOpcodes: true.
-	^startAddress
-]
-
 { #category : 'bytecode generators' }
 StackToRegisterMappingCogit >> genPopStackBytecode [
 	self ssPop: 1.
@@ -3203,11 +3176,6 @@ StackToRegisterMappingCogit >> generateMissAbortTrampolines [
 		picAbortTrampolines
 			at: numArgs
 			put: (self genPICAbortTrampolineFor: numArgs)].
-	0 to: self numRegArgs + 1 do:
-		[:numArgs|
-		picMissTrampolines
-			at: numArgs
-			put: (self genPICMissTrampolineFor: numArgs)].
 	ceReapAndResetErrorCodeTrampoline := self genTrampolineFor: #ceReapAndResetErrorCodeFor:
 												called: 'ceReapAndResetErrorCodeTrampoline'
 												arg: ClassReg
@@ -3769,35 +3737,6 @@ StackToRegisterMappingCogit >> picMissTrampolines [
 
 ]
 
-{ #category : 'method introspection' }
-StackToRegisterMappingCogit >> populate: tuple withPICInfoFor: cPIC firstCacheTag: firstCacheTag [
-	"Populate tuple (which must be large enough) with the ClosedPIC's target method class pairs.
-	 The first entry in tuple contains the bytecode pc for the send, so skip the tuple's first field."
-	<var: #cPIC type: #'CogMethod *'>
-	| picCaseMachineCodePC cacheTag classOop entryPoint targetMethod value |
-	<var: #targetMethod type: #'CogMethod *'>
-
-	1 to: cPIC cPICNumCases do: [:i|
-		picCaseMachineCodePC := self addressOfEndOfCase: i inCPIC: cPIC.
-		cacheTag := i = 1
-						ifTrue: [firstCacheTag]
-						ifFalse: [backEnd literalBeforeFollowingAddress: picCaseMachineCodePC - backEnd jumpLongConditionalByteSize].
-		
-		classOop := objectRepresentation classForInlineCacheTag: cacheTag.
-		objectMemory storePointer: i * 2 - 1 ofObject: tuple withValue: classOop.
-		entryPoint := i = 1
-						ifTrue: [backEnd jumpLongTargetBeforeFollowingAddress: picCaseMachineCodePC]
-						ifFalse: [backEnd jumpLongConditionalTargetBeforeFollowingAddress: picCaseMachineCodePC].
-		"Find target from jump.  A jump to the MNU entry-point should collect #doesNotUnderstand:"
-		(cPIC containsAddress: entryPoint)
-			ifTrue: [ value := objectMemory splObj: SelectorDoesNotUnderstand ]
-			ifFalse: [
-				targetMethod := self cCoerceSimple: entryPoint - cmNoCheckEntryOffset to: #'CogMethod *'.
-				self assert: targetMethod cmType = CMMethod.
-				value := targetMethod methodObject ].
-		objectMemory storePointer: i * 2 ofObject: tuple withValue: value ]
-]
-
 { #category : 'testing' }
 StackToRegisterMappingCogit >> prevInstIsPCAnnotated [
 
@@ -4018,14 +3957,15 @@ StackToRegisterMappingCogit >> profilingDataForSendTo: cogCodeSendTarget methodC
 	If the target is a closed PIC (polymorphic send) answer
 		{ bytecode pc, first class, target method, second class, second target method, ... }"
 
+	<flag: #FIXME>
+	<flag: #workingSet>
+	"We should reimplement this, as closed pics are not methods anymore"
 	<var: #cogCodeSendTarget type: #'CogMethod *'>
 	| tuple class |
 	tuple := objectMemory
 		         eeInstantiateClassIndex: ClassArrayCompactIndex
 		         format: objectMemory arrayFormat
-		         numSlots: (cogCodeSendTarget cmType = CMPolymorphicIC
-				          ifTrue: [ 2 * cogCodeSendTarget cPICNumCases + 1 ]
-				          ifFalse: [ 3 ]).
+		         numSlots: 3.
 	tuple = 0 ifTrue: [ ^ 0 ].
 
 	objectMemory
@@ -4040,10 +3980,6 @@ StackToRegisterMappingCogit >> profilingDataForSendTo: cogCodeSendTarget methodC
 		objectMemory
 			storePointer: 1 ofObject: tuple withValue: class;
 			storePointer: 2 ofObject: tuple withValue: cogCodeSendTarget methodObject.
-		^ tuple ].
-
-	cogCodeSendTarget cmType = CMPolymorphicIC ifTrue: [
-		self populate: tuple withPICInfoFor: cogCodeSendTarget firstCacheTag: cacheTag.
 		^ tuple ].
 
 	cogCodeSendTarget cmType = CMMegamorphicIC ifTrue: [

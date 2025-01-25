@@ -2532,32 +2532,6 @@ CogMIPSELCompiler >> relocateMethodReferenceBeforeAddress: pc by: delta [
 ]
 
 { #category : 'inline cacheing' }
-CogMIPSELCompiler >> rewriteCPICJumpAt: addressFollowingJump target: jumpTargetAddr [
-	"Rewrite a jump instruction to call a different target.  This variant is used to reset the 
-	jumps in the prototype CPIC to suit each use,.   
-	Answer the extent of the code change which is used to compute the range of the icache to flush."
-	<var: #addressFollowingJump type: #usqInt>
-	<var: #jumpTargetAddr type: #usqInt>
-	
-	"self CmpR: ClassReg R: TempReg.
-	^self JumpNonZero: 0"
-	
-	"bne s5, s3, +156 ; =BE7C
-	 nop (delay slot)
-	 .... <-- addressFollowingJump"
-	
-	self assert: (self opcodeAtAddress: addressFollowingJump - 8) = BNE.
-	self assert: (objectMemory longAt: addressFollowingJump - 4) = self nop.
-	"cogit disassembleFrom: addressFollowingJump - 8 to: addressFollowingJump."
-	
-	self rewriteITypeBranchAtAddress: addressFollowingJump - 8 target: jumpTargetAddr.
-	
-	self assert: (self opcodeAtAddress: addressFollowingJump - 8) = BNE.
-	self assert: (objectMemory longAt: addressFollowingJump - 4) = self nop.
-	"cogit disassembleFrom: addressFollowingJump - 8 to: addressFollowingJump."
-]
-
-{ #category : 'inline cacheing' }
 CogMIPSELCompiler >> rewriteCallAt: callSiteReturnAddress target: callTargetAddress [
 	"Rewrite a call instruction to call a different target.  This variant is used to link PICs
 	 in ceSendMiss et al,.   
@@ -2587,26 +2561,6 @@ CogMIPSELCompiler >> rewriteCallAt: callSiteReturnAddress target: callTargetAddr
 	"cogit disassembleFrom: callSiteReturnAddress - 16 to: callSiteReturnAddress."
 
 	^20
-]
-
-{ #category : 'inline cacheing' }
-CogMIPSELCompiler >> rewriteConditionalJumpLongAt: callSiteReturnAddress target: callTargetAddress [
-	"Rewrite a jump instruction to call a different target.  This variant is used to reset the 
-	jumps in the prototype CPIC to suit each use,.   
-	Answer the extent of the code change which is used to compute the range of the icache to flush."
-	<var: #callSiteReturnAddress type: #usqInt>
-	<var: #callTargetAddress type: #usqInt>
-	
-	self assert: (self opcodeAtAddress: callSiteReturnAddress - 8) = J.
-	self assert: (objectMemory longAt: callSiteReturnAddress - 4) = self nop.
-	"cogit disassembleFrom: callSiteReturnAddress - 8 to: callSiteReturnAddress."
-
-	self rewriteJTypeAtAddress: callSiteReturnAddress - 8 target: callTargetAddress.
-
-	self assert: (self opcodeAtAddress: callSiteReturnAddress - 8) = J.
-	self assert: (objectMemory longAt: callSiteReturnAddress - 4) = self nop.
-	"cogit disassembleFrom: callSiteReturnAddress - 8 to: callSiteReturnAddress."
-
 ]
 
 { #category : 'inline cacheing' }
@@ -2728,6 +2682,7 @@ CogMIPSELCompiler >> rewriteJumpLongAt: callSiteReturnAddress target: callTarget
 	"Rewrite a jump instruction to call a different target.  This variant is used to reset the 
 	jumps in the prototype CPIC to suit each use,.   
 	Answer the extent of the code change which is used to compute the range of the icache to flush."
+	<flag: #updateDocs>
 	<var: #callSiteReturnAddress type: #usqInt>
 	<var: #callTargetAddress type: #usqInt>
 	

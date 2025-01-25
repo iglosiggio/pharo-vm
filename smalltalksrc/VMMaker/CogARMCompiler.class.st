@@ -3067,17 +3067,6 @@ CogARMCompiler >> returnFromCallCFunctionInSmalltalkStack: anObject [
 ]
 
 { #category : 'inline cacheing' }
-CogARMCompiler >> rewriteCPICJumpAt: addressFollowingJump target: jumpTargetAddr [
-	"Rewrite a jump instruction to call a different target.  This variant is used to reset the 
-	jumps in the prototype CPIC to suit each use,.   
-	Answer the extent of the code change which is used to compute the range of the icache to flush."
-	<var: #addressFollowingJump type: #usqInt>
-	<var: #jumpTargetAddr type: #usqInt>
-	<inline: true>
-	^self rewriteTransferAt: addressFollowingJump target: jumpTargetAddr
-]
-
-{ #category : 'inline cacheing' }
 CogARMCompiler >> rewriteCallAt: callSiteReturnAddress target: callTargetAddress [
 	"Rewrite a call instruction to call a different target.  This variant is used to link PICs
 	 in ceSendMiss et al,.   
@@ -3137,6 +3126,7 @@ CogARMCompiler >> rewriteJumpLongAt: callSiteReturnAddress target: callTargetAdd
 	"Rewrite a jump instruction to call a different target.  This variant is used to reset the 
 	jumps in the prototype CPIC to suit each use,.   
 	Answer the extent of the code change which is used to compute the range of the icache to flush."
+	<flag: #updateDocs>
 	<var: #callSiteReturnAddress type: #usqInt>
 	<var: #callTargetAddress type: #usqInt>
 	^self rewriteTransferAt: callSiteReturnAddress target: callTargetAddress
@@ -3148,6 +3138,7 @@ CogARMCompiler >> rewriteTransferAt: callSiteReturnAddress target: callTargetAdd
 	 in ceSendMiss et al, and to rewrite call/jumps in CPICs.
 	Answer the extent of
 	 the code change which is used to compute the range of the icache to flush."
+	<flag: #updateDocs>
 	<var: #callSiteReturnAddress type: #usqInt>
 	<var: #callTargetAddress type: #usqInt>
 	| callDistance instr |

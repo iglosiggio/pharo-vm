@@ -2295,7 +2295,7 @@ CogObjectRepresentationFor64BitSpur >> maybeGenerateSelectorIndexDereferenceRout
 		AddCq: 2 R: ClassReg; "Change selector index to 1-relative, skipping the method header"
 		TstCq: MFMethodFlagIsBlockFlag R: Extra0Reg.
 	jumpNotBlock := cogit JumpZero: 0.
-	"If in a block, need to find the home method...  If using full blocks, need to test the cpicHasMNUCaseOrCMIsFullBlock bit"
+	"If in a block, need to find the home method...  If using full blocks, need to test the isFullBlock bit"
 	cogit AndCq: methodZone zoneAlignment negated R: Extra0Reg.
 	SistaV1BytecodeSet ifTrue:
 		[self bitAndByteOffsetOfIsFullBlockBitInto:

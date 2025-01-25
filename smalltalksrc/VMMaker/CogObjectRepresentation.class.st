@@ -1732,12 +1732,6 @@ CogObjectRepresentation >> inlineCacheTagForInstance: oop [
 	^self subclassResponsibility
 ]
 
-{ #category : 'in-line cacheing' }
-CogObjectRepresentation >> inlineCacheTagsMayBeObjects [
-	<inline: true>
-	^self subclassResponsibility
-]
-
 { #category : 'testing' }
 CogObjectRepresentation >> isImmediate: oop [
 	<doNotGenerate>
