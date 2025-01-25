@@ -2369,7 +2369,7 @@ SimpleStackBasedCogit >> genSend: selectorIndex numArgs: numArgs sendTable: send
 		 annotation between: IsDirectedSuperSend and: IsDirectedSuperBindingSend ])
 		ifTrue: [
 			self genMoveConstant: tempOop R: TempReg.
-			objectMemory storePointer: ICCacheOperand0Index ofObject: icTable withValue: tempOop ].
+			objectMemory storePointer: ICCacheEntryStart + (ICCacheEntrySlotCount * 0) + ICCacheOperandOffset ofObject: icTable withValue: tempOop ].
 
 	(self MoveUniqueCw: icTable R: ClassReg) annotation: annotation.
 	objectRepresentation genLoadSlot: ICHandlerIndex sourceReg: ClassReg destReg: Extra0Reg.

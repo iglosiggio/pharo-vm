@@ -296,6 +296,12 @@ Spur64BitMemoryManager >> hasSixtyFourBitImmediates [
 	^true
 ]
 
+{ #category : 'accessing' }
+Spur64BitMemoryManager >> illegalClassTag [
+
+	^ 0
+]
+
 { #category : 'immediates' }
 Spur64BitMemoryManager >> imageFormatVersion [
 	"Return a magic constant that changes when the image format changes.

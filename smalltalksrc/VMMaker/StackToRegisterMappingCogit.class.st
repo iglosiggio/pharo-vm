@@ -2026,7 +2026,7 @@ StackToRegisterMappingCogit >> genMarshalledSend: selectorIndex numArgs: numArgs
 		 annotation between: IsDirectedSuperSend and: IsDirectedSuperBindingSend ])
 		ifTrue: [
 			self genMoveConstant: tempOop R: TempReg.
-			objectMemory storePointer: ICCacheOperand0Index ofObject: icTable withValue: tempOop ].
+			objectMemory storePointer: ICCacheEntryStart + (ICCacheEntrySlotCount * 0) + ICCacheOperandOffset ofObject: icTable withValue: tempOop ].
 
 	(self MoveUniqueCw: icTable R: ClassReg) annotation: annotation.
 	objectRepresentation genLoadSlot: ICHandlerIndex sourceReg: ClassReg destReg: Extra0Reg.
@@ -3214,6 +3214,25 @@ StackToRegisterMappingCogit >> generateMissAbortTrampolines [
 ]
 
 { #category : 'initialization' }
+StackToRegisterMappingCogit >> generatePolymorphicSendTrampolines [
+	"Generate the run-time entries for the various polymorphic send stubs"
+
+	<flag: #workingSet>
+	0 to: self numRegArgs + 1 do: [ :numArgs |
+		polymorphicSendTrampolines
+			at: numArgs
+			put: (self genPolymorphicSendTrampoline: numArgs) ].
+	0 to: self numRegArgs + 1 do: [ :numArgs |
+		polymorphicSendMNUTrampolines
+			at: numArgs
+			put: (self genPolymorphicSendMNUTrampoline: numArgs) ].
+	0 to: self numRegArgs + 1 do: [ :numArgs |
+		polymorphicSendInterpretTrampolines
+			at: numArgs
+			put: (self genPolymorphicSendInterpretTrampoline: numArgs) ]
+]
+
+{ #category : 'initialization' }
 StackToRegisterMappingCogit >> generateSendTrampolines [
 	"Override to generate code to push the register arg(s) for <= numRegArg arity sends."
 	0 to: NumSendTrampolines - 1 do:
@@ -3888,11 +3907,11 @@ StackToRegisterMappingCogit >> profilingDataFor: descriptor Annotation: isBackwa
 	<var: #descriptor type: #'BytecodeDescriptor *'>
 	<var: #mcpc type: #'char *'>
 	<var: #cogMethodArg type: #'void *'>
-	<var: #methodClassIfSuper type: #sqInt>
 	<var: #counter type: #'unsigned int'>
 	<flag: #workingSet>
 	<flag: #FIXME "Broken since isSend is no longer being enumerated">
 	| annotation tuple counter icTable handler |
+	self error: 'unimplemented!'.
 	"N.B. Counters are always 32-bits, having two 16-bit halves for the reached and taken counts."
 	descriptor ifNil: [ ^ 0 ].
 	descriptor isBranch ifTrue: [ "it's a branch; conditional?"
@@ -3926,7 +3945,8 @@ StackToRegisterMappingCogit >> profilingDataFor: descriptor Annotation: isBackwa
 	handler > methodZoneBase ifFalse: [ "send is not linked" ^ 0 ].
 
 	"It's a linked send; find which kind."
-	self
+	"FIXME: This is broken"
+"	self
 		targetMethodAndSendTableFor: handler
 		annotation: annotation
 		into: [ :targetCogCode :sendTable |
@@ -3937,7 +3957,7 @@ StackToRegisterMappingCogit >> profilingDataFor: descriptor Annotation: isBackwa
 					                      (self cCoerceSimple: cogMethodArg to: #'CogMethod *')
 						                      methodObject ].
 			sendTable = directedSuperSendTrampolines ifTrue: [
-				"Cache operand 0"
+				""Cache operand 0""
 				association := objectMemory fetchPointer: ICCacheOperand0Index ofObject: icTable.
 				methodClassIfSuper := objectRepresentation valueOfAssociation: association ].
 
@@ -3946,7 +3966,7 @@ StackToRegisterMappingCogit >> profilingDataFor: descriptor Annotation: isBackwa
 				         profilingDataForSendTo: targetCogCode
 				         methodClassIfSuper: methodClassIfSuper
 				         cacheTag: cacheTag
-				         bcpc: bcpc + 1 ].
+				         bcpc: bcpc + 1 ]."
 
 	tuple = 0 ifTrue: [ ^ PrimErrNoMemory ].
 	objectMemory

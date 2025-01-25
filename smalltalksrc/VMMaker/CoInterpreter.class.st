@@ -1186,6 +1186,7 @@ CoInterpreter >> ceCounterTripped: condition [
 CoInterpreter >> ceInterpretMethodFromPIC: aMethodObj receiver: rcvr [
 	<api>
 	| pic primitiveIndex |
+	<flag: #forDeletion "Merge with the polymorphic abort???">
 	<var: #pic type: #'CogMethod *'>
 	"pop off inner return and locate open or closed PIC"
 	pic := self cCoerceSimple: self popStack - cogit interpretOffset to: #'CogMethod *'.
@@ -1217,7 +1218,9 @@ CoInterpreter >> ceInterpretMethodFromPIC: aMethodObj receiver: rcvr [
 CoInterpreter >> ceMNUFromPICMNUMethod: aMethodObj receiver: rcvr [
 	<api>
 	| cPIC primitiveIndex |
+	<flag: #forDeletion>
 	<var: #cPIC type: #'CogMethod *'>
+	self error: 'should be unreachable'.
 	self assert: (objectMemory addressCouldBeOop: rcvr).
 	self assert: (aMethodObj = 0
 				or: [(objectMemory addressCouldBeObj: aMethodObj)
@@ -1373,6 +1376,78 @@ CoInterpreter >> ceNonLocalReturn: returnValue [
 			 instructionPointer := (self frameCallerSavedIP: callerFP) asUnsignedInteger.
 			 stackPointer := (self frameCallerSP: callerFP)].
 	^self return: returnValue toExecutive: false
+]
+
+{ #category : 'trampolines' }
+CoInterpreter >> cePolymorphicSendInterpret: icTable method: aMethodObj receiver: rcvr numArgs: numArgs [
+
+	<flag: #workingSet>
+	<api>
+	| primitiveIndex |
+	self assert: (objectMemory isNotForwarded: icTable).
+	self assert: (objectMemory isNotForwarded: aMethodObj).
+	self assert: (objectMemory isNotForwarded: rcvr).
+
+	(self methodHasCogMethod: aMethodObj) ifTrue: [
+		| cogMethod |
+		"Method was cogged, let's update link it directly from the table and execute it!"
+		cogMethod := self cogMethodOf: aMethodObj.
+		0 to: ICCacheEntryCount - 1 do: [ :i |
+			| operand |
+			operand := objectMemory
+				           fetchPointer:
+				           ICCacheEntryStart + (ICCacheEntrySlotCount * i)
+				           + ICCacheOperandOffset
+				           ofObject: icTable.
+			operand = aMethodObj ifTrue: [
+				objectMemory
+					storePointer:
+					ICCacheEntryStart + (ICCacheEntrySlotCount * i) + ICCacheValueOffset
+					ofObject: icTable
+					withValue: cogMethod asUnsignedInteger + cogit noCheckEntryOffset ] ].
+		self executeCogMethod: cogMethod fromUnlinkedSendWithReceiver: rcvr.
+		self unreachable ].
+
+	"Method was not cogged, jump to the interpreter instead :("
+	messageSelector := objectMemory fetchPointer: ICSelectorIndex ofObject: icTable.
+	newMethod := aMethodObj.
+	primitiveIndex := self primitiveIndexOf: aMethodObj.
+	primitiveFunctionPointer := self
+		                            functionPointerFor: primitiveIndex
+		                            inClass: objectMemory nilObject.
+	argumentCount := numArgs.
+	instructionPointer := self popStack.
+	self interpretMethodFromMachineCode.
+	self unreachable
+]
+
+{ #category : 'trampolines' }
+CoInterpreter >> cePolymorphicSendMNU: icTable method: aMethodObj receiver: rcvr numArgs: numArgs [
+
+	<api>
+	| primitiveIndex |
+	self assert: (objectMemory addressCouldBeOop: rcvr).
+	self assert: ((objectMemory addressCouldBeObj: aMethodObj) and: [
+			 objectMemory isOopCompiledMethod: aMethodObj ]).
+	argumentCount := numArgs.
+	messageSelector := objectMemory
+		                   fetchPointer: ICSelectorIndex
+		                   ofObject: icTable.
+
+	instructionPointer := self popStack.
+	self createActualMessageTo: (objectMemory fetchClassOf: rcvr).
+	(self maybeMethodHasCogMethod: aMethodObj) ifTrue: [
+		self push: instructionPointer.
+		self
+			executeCogMethod: (self cogMethodOf: aMethodObj)
+			fromUnlinkedSendWithReceiver: rcvr.
+		self unreachable ].
+	newMethod := aMethodObj.
+	primitiveIndex := self primitiveIndexOf: aMethodObj.
+	primitiveFunctionPointer := self
+		                            functionPointerFor: primitiveIndex
+		                            inClass: objectMemory nilObject.
+	^ self interpretMethodFromMachineCode
 ]
 
 { #category : 'trampolines' }
@@ -1545,6 +1620,48 @@ CoInterpreter >> ceSendAbort: selector to: rcvr numArgs: numArgs [
 		 self unreachable].
 	self interpretMethodFromMachineCode.
 	^self unreachable
+]
+
+{ #category : 'trampolines' }
+CoInterpreter >> ceSendFromInLineCacheMiss2: selector numArgs: numArgs receiver: rcvr [
+	"Send from an Megamorphic IC when the first-level method lookup probe has failed,
+	 or to continue when PIC creation has failed (e.g. because we're out of code space),
+	 or when a send has failed due to a forwarded receiver."
+
+	<api>
+	<flag: #workingSet>
+	| classTag classObj errSelIdx |
+	self assert: (objectMemory isNotForwarded: rcvr).
+	self assert: (objectMemory addressCouldBeOop: rcvr).
+	classTag := objectMemory fetchClassTagOf: rcvr.
+	argumentCount := numArgs.
+
+	"If selector or receiver are forwarders, retry"
+	(objectMemory isOopForwarded: selector) ifTrue: [
+		| newSelector |
+		newSelector := self handleForwardedSelectorFaultFor: selector.
+		^ self
+			  ceSendFromInLineCacheMiss2: newSelector
+			  numArgs: numArgs
+			  receiver: rcvr ].
+
+	(self lookupInMethodCacheSel: selector classTag: classTag)
+		ifTrue: [ "check for coggability because method is in the cache"
+			self ifAppropriateCompileToNativeCode: newMethod selector: selector ]
+		ifFalse: [
+			messageSelector := selector.
+			classObj := objectMemory classForClassTag: classTag.
+			errSelIdx := self lookupMethodWithoutMNUProcessingInClass: classObj.
+			errSelIdx ~= 0 ifTrue: [
+				self handleMNU: errSelIdx InMachineCodeTo: rcvr classForMessage: classObj.
+				self unreachable ] ].
+
+	instructionPointer := self popStack.
+	(self maybeMethodHasCogMethod: newMethod) ifTrue: [
+		self executeNewMethod.
+		self unreachable ].
+	self interpretMethodFromMachineCode.
+	self unreachable
 ]
 
 { #category : 'trampolines' }
@@ -2923,7 +3040,6 @@ CoInterpreter >> handleUnlinkedSendFor: icTable to: receiver isSuper: isSuper cl
 	<story: #pic>
 	<inline: #always>
 	<var: #cogMethod type: #'CogMethod *'>
-	<var: #mnuPIC type: #'CogMethod *'>
 	| selector found cogMethod |
 	cogit assertCStackWellAligned.
 	self deny: (objectMemory isForwardedClassTag: classTag).
@@ -2931,10 +3047,9 @@ CoInterpreter >> handleUnlinkedSendFor: icTable to: receiver isSuper: isSuper cl
 	"FIXME: self assertValidICTable: icTable"
 	argumentCount := numArgs.
 
+	self assert: (objectMemory isNotForwarded: icTable).
 	selector := objectMemory fetchPointer: ICSelectorIndex ofObject: icTable.
-	(objectMemory isOopForwarded: icTable) ifTrue: [
-		selector := self handleForwardedSelectorFaultFor: selector.
-		objectMemory storePointer: ICSelectorIndex ofObject: icTable withValue: selector ].
+	self assert: (objectMemory isNotForwarded: selector).
 
 	found := self lookupInMethodCacheSel: selector classTag: classTag.
 	found ifTrue: [ "
@@ -2949,24 +3064,17 @@ CoInterpreter >> handleUnlinkedSendFor: icTable to: receiver isSuper: isSuper cl
 		errSelIdx := self lookupMethodWithoutMNUProcessingInClass: classObj.
 		errSelIdx ~= 0 ifTrue: [
 			errSelIdx = SelectorDoesNotUnderstand ifTrue: [
-				| mnuPIC |
-				mnuPIC := (cogit
-					           cogMNUPICSelector: messageSelector
-					           receiver: receiver
-					           methodOperand: (self mnuMethodOrNilFor: receiver)
-					           numArgs: argumentCount) asUnsignedInteger.
-				mnuPIC > cogit minCogMethodAddress ifTrue: [
+				| mnuMethodOop |
+				mnuMethodOop := self mnuMethodOrNilFor: receiver.
+				mnuMethodOop ifNotNil: [
+					cogit transitionToPolymorphicSend: icTable numArgs: numArgs.
 					cogit
-						linkSendAt: icTable
-						to: mnuPIC
-						offset: (isSuper = 0
-								 ifTrue: [ cogit entryOffset ]
-								 ifFalse: [ cogit noCheckEntryOffset ])
-						receiver: receiver ] ].
-			self
-				handleMNU: errSelIdx
-				InMachineCodeTo: receiver
-				classForMessage: classObj.
+						configurePolymorphicSendCase: icTable
+						entryIndex: 0
+						cacheTag: classTag
+						operand: mnuMethodOop
+						value: (cogit polymorphicSendMNUFor: numArgs) ] ].
+			self handleMNU: errSelIdx InMachineCodeTo: receiver classForMessage: classObj.
 			self unreachable ] ].
 
 	"Method has been found, either in the cache or in by doing a lookup.
@@ -2987,12 +3095,10 @@ CoInterpreter >> handleUnlinkedSendFor: icTable to: receiver isSuper: isSuper cl
 	cogMethod selector = selector
 		ifTrue: [
 			cogit
-				linkSendAt: icTable
-				to: cogMethod
-				offset: (isSuper = 0
-						 ifTrue: [ cogit entryOffset ]
-						 ifFalse: [ cogit noCheckEntryOffset ])
-				receiver: receiver ]
+				transitionToMonomorphicSend: icTable
+				cacheTag: classTag
+				cogMethod: cogMethod
+				isSuper: isSuper ]
 		ifFalse: [
 			isSuper = 0 ifTrue: [ "
 				Megamorphic PICs perform normal sends. Can't patch if this is a super send."

@@ -2,9 +2,12 @@ Class {
 	#name : 'ICTableConstants',
 	#superclass : 'SharedPool',
 	#classVars : [
-		'ICCacheOperand0Index',
-		'ICCacheTag0Index',
-		'ICCacheValue0Index',
+		'ICCacheEntryCount',
+		'ICCacheEntrySlotCount',
+		'ICCacheEntryStart',
+		'ICCacheOperandOffset',
+		'ICCacheTagOffset',
+		'ICCacheValueOffset',
 		'ICHandlerIndex',
 		'ICSelectorIndex',
 		'ICSlotCount'

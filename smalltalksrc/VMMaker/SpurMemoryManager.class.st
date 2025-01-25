@@ -1908,18 +1908,7 @@ SpurMemoryManager >> allocateICTable: selectorOop withUnlinkedHandler: unlinkedT
 			storePointer: ICHandlerIndex
 			ofObject: result
 			withValue: unlinkedTrampoline.
-		self
-			storePointer: ICCacheTag0Index
-			ofObject: result
-			withValue: (self integerObjectOf: 0).
-		self
-			storePointer: ICCacheOperand0Index
-			ofObject: result
-			withValue: self nilObject.
-		self
-			storePointer: ICCacheValue0Index
-			ofObject: result
-			withValue: (self integerObjectOf: 0) ].
+		self clearAllICTableEntries: result ].
 	^ result
 ]
 
@@ -4015,6 +4004,15 @@ SpurMemoryManager >> cleanUpPermToOldSpaceRememeberedSet [
 
 ]
 
+{ #category : 'allocation' }
+SpurMemoryManager >> clearAllICTableEntries: icTable [
+
+	<flag: #workingSet>
+	<api>
+	0 to: ICCacheEntryCount - 1 do: [ :i |
+	self clearPolymorphicSendEntry: i ofICTable: icTable ]
+]
+
 { #category : 'debug support' }
 SpurMemoryManager >> clearLeakMapAndMapAccessibleFreeSpace [
 	"Perform an integrity/leak check using the heapMap.  Set a bit at each free chunk's header."
@@ -4033,6 +4031,28 @@ SpurMemoryManager >> clearLeakMapAndMapAccessibleObjects [
 	heapMap clearHeapMap.
 	self allObjectsDo:
 		[:oop| heapMap heapMapAtWord: (self pointerForOop: oop) Put: 1]
+]
+
+{ #category : 'allocation' }
+SpurMemoryManager >> clearPolymorphicSendEntry: i ofICTable: icTable [
+
+	<api>
+	<flag: #workingSet>
+	self
+		storePointer:
+		ICCacheEntryStart + (ICCacheEntrySlotCount * i) + ICCacheTagOffset
+		ofObject: icTable
+		withValue: self illegalClassTag. "FIXME: should be the illegal class tag"
+	self
+		storePointer:
+		ICCacheEntryStart + (ICCacheEntrySlotCount * i) + ICCacheOperandOffset
+		ofObject: icTable
+		withValue: self nilObject.
+	self
+		storePointer:
+		ICCacheEntryStart + (ICCacheEntrySlotCount * i) + ICCacheValueOffset
+		ofObject: icTable
+		withValue: nil
 ]
 
 { #category : 'become implementation' }
@@ -6577,6 +6597,12 @@ SpurMemoryManager >> ifOopInvalidForBecome: oop errorCodeInto: aBlock [
 		[^aBlock value: PrimErrObjectIsPinned].
 	(self isObjImmutable: oop) ifTrue:
 		[^aBlock value: PrimErrNoModification]
+]
+
+{ #category : 'accessing' }
+SpurMemoryManager >> illegalClassTag [
+
+	self subclassResponsibility
 ]
 
 { #category : 'image segment in/out' }

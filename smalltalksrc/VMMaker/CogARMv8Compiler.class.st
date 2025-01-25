@@ -4183,6 +4183,32 @@ CogARMv8Compiler >> genPushRegisterArgsForNumArgs: numArgs scratchReg: ignored [
 				[cogit PushR: Arg1Reg]]]
 ]
 
+{ #category : 'smalltalk calling convention' }
+CogARMv8Compiler >> genPushRegisterArgsForPolymorphicSendTrampoline: numArgs [
+	"Ensure that the register args are pushed before the retpc at a
+	 polymorphic send miss for arity <= self numRegArgs.  The retpc
+	  is that of a call at a send site."
+
+	"Putting the receiver and args above the return address means the
+	 CoInterpreter has a single machine-code frame format which saves
+	 us a lot of work."
+
+	"Iff there are register args convert
+		lingReg = retpc			(send site retpc)
+	 to
+		base	->	receiver
+					(arg0)
+					(arg1)
+		sp		->	retpc			(send site retpc)"
+
+	numArgs <= cogit numRegArgs ifTrue: [
+		cogit PushR: ReceiverResultReg.
+		1 <= numArgs ifTrue: [ cogit PushR: Arg0Reg ].
+		2 <= numArgs ifTrue: [ cogit PushR: Arg1Reg ].
+		self assert: numArgs <= 2 ].
+	cogit PushR: LinkReg
+]
+
 { #category : 'abi' }
 CogARMv8Compiler >> genRemoveNArgsFromStack: n [
 	"This is a no-op on ARM since the ABI passes up to 4 args in registers and trampolines currently observe that limit."
