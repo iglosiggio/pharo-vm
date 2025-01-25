@@ -1999,9 +1999,9 @@ StackToRegisterMappingCogit >> genMarshalledSend: selectorIndex numArgs: numArgs
 		               ifTrue: [ coInterpreter specialSelector: -1 - selectorIndex ]
 		               ifFalse: [ self getLiteral: selectorIndex ].
 	icTable := objectMemory
-		            allocateICTable: selectorOop
-		            withUnlinkedHandler:
-		            (sendTable at: (numArgs min: NumSendTrampolines - 1)).
+		           allocateICTable: selectorOop
+		           withUnlinkedHandler:
+		           (sendTable at: (numArgs min: NumSendTrampolines - 1)).
 	icTable ifNil: [ ^ InsufficientCodeSpace ].
 	(objectMemory isYoung: icTable) ifTrue: [ hasYoungReferent := true ].
 	(objectMemory isYoung: selectorOop) ifTrue: [ hasYoungReferent := true ].
@@ -2019,12 +2019,13 @@ StackToRegisterMappingCogit >> genMarshalledSend: selectorIndex numArgs: numArgs
 
 	(BytecodeSetHasDirectedSuperSend and: [
 		 annotation between: IsDirectedSuperSend and: IsDirectedSuperBindingSend ])
-		ifTrue: [
-			self genMoveConstant: tempOop R: TempReg.
-			objectMemory storePointer: ICCacheEntryStart + (ICCacheEntrySlotCount * 0) + ICCacheOperandOffset ofObject: icTable withValue: tempOop ].
+		ifTrue: [ self genMoveConstant: tempOop R: TempReg ].
 
 	(self MoveUniqueCw: icTable R: ClassReg) annotation: annotation.
-	objectRepresentation genLoadSlot: ICHandlerIndex sourceReg: ClassReg destReg: Extra0Reg.
+	objectRepresentation
+		genLoadSlot: ICHandlerIndex
+		sourceReg: ClassReg
+		destReg: Extra0Reg.
 	self annotateBytecode: (self CallR: Extra0Reg).
 
 	self voidReceiverOptStatus.
@@ -3842,13 +3843,14 @@ StackToRegisterMappingCogit >> printSimStack: aSimStack toDepth: limit spillBase
 
 { #category : 'method introspection' }
 StackToRegisterMappingCogit >> profilingDataFor: descriptor Annotation: isBackwardBranchAndAnnotation Mcpc: mcpc Bcpc: bcpc Method: cogMethodArg [
+	"Broken since isSend is no longer being enumerated"
 
 	<var: #descriptor type: #'BytecodeDescriptor *'>
 	<var: #mcpc type: #'char *'>
 	<var: #cogMethodArg type: #'void *'>
 	<var: #counter type: #'unsigned int'>
 	<flag: #workingSet>
-	<flag: #FIXME "Broken since isSend is no longer being enumerated">
+	<flag: #FIXME>
 	| annotation tuple counter icTable handler |
 	self error: 'unimplemented!'.
 	"N.B. Counters are always 32-bits, having two 16-bit halves for the reached and taken counts."
@@ -3879,13 +3881,13 @@ StackToRegisterMappingCogit >> profilingDataFor: descriptor Annotation: isBackwa
 	(self isSendAnnotation: annotation) ifFalse: [ "not a send" ^ 0 ].
 
 	icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
-	"FIXME: self assertValidICTable: icTable"
+	self assertValidICTable: icTable duringGC: false.
 	handler := objectRepresentation fetchPointer: ICHandlerIndex ofObject: icTable.
 	handler > methodZoneBase ifFalse: [ "send is not linked" ^ 0 ].
 
 	"It's a linked send; find which kind."
 	"FIXME: This is broken"
-"	self
+	"	self
 		targetMethodAndSendTableFor: handler
 		annotation: annotation
 		into: [ :targetCogCode :sendTable |

@@ -1184,12 +1184,16 @@ CoInterpreter >> ceCounterTripped: condition [
 
 { #category : 'trampolines' }
 CoInterpreter >> ceInterpretMethodFromPIC: aMethodObj receiver: rcvr [
+
 	<api>
-	| pic primitiveIndex |
-	<flag: #forDeletion "Merge with the polymorphic abort???">
+	<flag: #forDeletion>
 	<var: #pic type: #'CogMethod *'>
-	"pop off inner return and locate open or closed PIC"
-	pic := self cCoerceSimple: self popStack - cogit interpretOffset to: #'CogMethod *'.
+	| pic primitiveIndex |
+	"Merge with the polymorphic abort???"
+	pic := self
+		       cCoerceSimple: self popStack - cogit interpretOffset
+		       to: #'CogMethod *'.
+	"pop off inner return and locate open PIC"
 	self assert: pic cmType = CMMegamorphicIC.
 	"If found from an open PIC then it must be an uncogged method and, since it's been found
 	 in the method cache, should be cogged if possible.  If found from a closed PIC then at the
@@ -1197,17 +1201,19 @@ CoInterpreter >> ceInterpretMethodFromPIC: aMethodObj receiver: rcvr [
 	 no space, it had too many literals or it contained an illegal bytecode).  So don't try and cog
 	 it, but subsequently it may have been cogged via another path.  If the method is, or ends up
 	 cogged, jump to machine code, otherwise interpret."
-	pic cmType = CMMegamorphicIC ifTrue:
-		[self assert: (self methodHasCogMethod: aMethodObj) not.
-		 cogit cogMethodIfPossible: aMethodObj selector: pic selector].
-	(self methodHasCogMethod: aMethodObj) ifTrue:
-		[self executeCogMethod: (self cogMethodOf: aMethodObj)
+	self assert: (self methodHasCogMethod: aMethodObj) not.
+	cogit cogMethodIfPossible: aMethodObj selector: pic selector.
+	(self methodHasCogMethod: aMethodObj) ifTrue: [
+		self
+			executeCogMethod: (self cogMethodOf: aMethodObj)
 			fromUnlinkedSendWithReceiver: rcvr.
-		 self unreachable].
+		self unreachable ].
 	messageSelector := pic selector.
 	newMethod := aMethodObj.
 	primitiveIndex := self primitiveIndexOf: aMethodObj.
-	primitiveFunctionPointer := self functionPointerFor: primitiveIndex inClass: objectMemory nilObject.
+	primitiveFunctionPointer := self
+		                            functionPointerFor: primitiveIndex
+		                            inClass: objectMemory nilObject.
 	argumentCount := pic cmNumArgs.
 	instructionPointer := self popStack.
 	self interpretMethodFromMachineCode.
@@ -3044,7 +3050,7 @@ CoInterpreter >> handleUnlinkedSendFor: icTable to: receiver isSuper: isSuper cl
 	cogit assertCStackWellAligned.
 	self deny: (objectMemory isForwardedClassTag: classTag).
 	self assert: (objectMemory isNotForwarded: receiver).
-	"FIXME: self assertValidICTable: icTable"
+	cogit assertValidICTable: icTable duringGC: false.
 	argumentCount := numArgs.
 
 	self assert: (objectMemory isNotForwarded: icTable).

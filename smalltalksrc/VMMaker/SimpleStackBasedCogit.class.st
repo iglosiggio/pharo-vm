@@ -2334,9 +2334,9 @@ SimpleStackBasedCogit >> genSend: selectorIndex numArgs: numArgs sendTable: send
 		               ifTrue: [ coInterpreter specialSelector: -1 - selectorIndex ]
 		               ifFalse: [ self getLiteral: selectorIndex ].
 	icTable := objectMemory
-		            allocateICTable: selectorOop
-		            withUnlinkedHandler:
-		            (sendTable at: (numArgs min: NumSendTrampolines - 1)).
+		           allocateICTable: selectorOop
+		           withUnlinkedHandler:
+		           (sendTable at: (numArgs min: NumSendTrampolines - 1)).
 	icTable ifNil: [ ^ InsufficientCodeSpace ].
 	(objectMemory isYoung: icTable) ifTrue: [ hasYoungReferent := true ].
 	(objectMemory isYoung: selectorOop) ifTrue: [ hasYoungReferent := true ].
@@ -2356,12 +2356,13 @@ SimpleStackBasedCogit >> genSend: selectorIndex numArgs: numArgs sendTable: send
 
 	(BytecodeSetHasDirectedSuperSend and: [
 		 annotation between: IsDirectedSuperSend and: IsDirectedSuperBindingSend ])
-		ifTrue: [
-			self genMoveConstant: tempOop R: TempReg.
-			objectMemory storePointer: ICCacheEntryStart + (ICCacheEntrySlotCount * 0) + ICCacheOperandOffset ofObject: icTable withValue: tempOop ].
+		ifTrue: [ self genMoveConstant: tempOop R: TempReg ].
 
 	(self MoveUniqueCw: icTable R: ClassReg) annotation: annotation.
-	objectRepresentation genLoadSlot: ICHandlerIndex sourceReg: ClassReg destReg: Extra0Reg.
+	objectRepresentation
+		genLoadSlot: ICHandlerIndex
+		sourceReg: ClassReg
+		destReg: Extra0Reg.
 	self annotateBytecode: (self CallR: Extra0Reg).
 	self PushR: ReceiverResultReg.
 	^ 0

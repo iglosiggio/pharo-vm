@@ -6042,6 +6042,8 @@ StackInterpreter >> findSPOrNilOf: theFP on: thePage startingFrom: startFrame [
 
 { #category : 'debug support' }
 StackInterpreter >> findSelectorOfMethod: meth [
+
+	<api>
 	| classObj classDict classDictSize methodArray i |
 	(objectMemory addressCouldBeObj: meth) ifFalse:
 		[^objectMemory nilObject].
