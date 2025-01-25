@@ -30,7 +30,7 @@ VMSimpleStackBasedCogitMegamorphicPICTest >> setUp [
 { #category : 'tests - PIC' }
 VMSimpleStackBasedCogitMegamorphicPICTest >> testLookupExistingMegamorphicPICReturnsPIC [
 
-	| selector createdPic specialObjectsArray |
+	| selector createdPic |
 	selector := memory trueObject.
 	
 	createdPic := cogit cogOpenPICSelector: selector numArgs: 1.

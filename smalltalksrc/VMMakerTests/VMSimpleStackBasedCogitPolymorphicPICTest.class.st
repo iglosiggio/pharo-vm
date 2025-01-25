@@ -94,37 +94,11 @@ VMSimpleStackBasedCogitPolymorphicPICTest >> configuredPicCases: aNumber [
 	configuredPicCases := aNumber
 ]
 
-{ #category : 'helpers' }
-VMSimpleStackBasedCogitPolymorphicPICTest >> extendPIC: aPic [
-
-	cogit
-		cogExtendPIC: aPic
-		CaseNMethod: (compiledMethods at: aPic cPICNumCases)
-		tag: (picTypeTags at: aPic cPICNumCases)
-		isMNUCase: false.
-]
-
-{ #category : 'helpers' }
-VMSimpleStackBasedCogitPolymorphicPICTest >> makePolymorphicPIC [
-
-	| pic |
-	pic := cogit cogPICSelector: selector
-		numArgs: numArgs
-		Case0Method: (cogMethods at: 0)
-		Case1Method: (compiledMethods at: 1)
-		tag: (picTypeTags at: 1)
-		isMNUCase: false.
-	3 to: self configuredPicCases do: [ :extraCase |
-		self extendPIC: pic ].
-	^ pic
-]
-
 { #category : 'running' }
 VMSimpleStackBasedCogitPolymorphicPICTest >> setUp [
 
 	super setUp.
 	self setUpCogMethodEntry.
-	cogit generateClosedPICPrototype.
 
 	cogit methodZone
 		manageFrom: cogit methodZoneBase

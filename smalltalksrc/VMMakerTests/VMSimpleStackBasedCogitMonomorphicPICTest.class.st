@@ -7,16 +7,6 @@ Class {
 }
 
 { #category : 'tests - PIC' }
-VMSimpleStackBasedCogitMonomorphicPICTest >> testCalculateClosePICSize [
-
-	"Calculate the size of the Closed Pic"
-	self setUpCogMethodEntry.
-	cogit generateClosedPICPrototype.
-	
-	self assert: cogit closedPICSize isNotNil
-]
-
-{ #category : 'tests - PIC' }
 VMSimpleStackBasedCogitMonomorphicPICTest >> testLinkCallDuringSendInTrampolineReplacesTheCallTargetWithTheCogMethodAddress [
 	"This is for the monomorphic case"
 
