@@ -914,6 +914,28 @@ CogAbstractInstruction >> genPushRegisterArgsForNumArgs: numArgs scratchReg: scr
 ]
 
 { #category : 'smalltalk calling convention' }
+CogAbstractInstruction >> genPushRegisterArgsForPolymorphicSendTrampoline: numArgs [
+	"Ensure that the register args are pushed before the retpc at a
+	 polymorphic send miss for arity <= self numRegArgs.  The retpc
+	  is that of a call at a send site."
+
+	"Putting the receiver and args above the return address means the
+	 CoInterpreter has a single machine-code frame format which saves
+	 us a lot of work."
+
+	"Iff there are register args convert
+		linkReg = retpc			(send site retpc)
+	 or
+	   sp      -> retpc      (send site retpc)
+	 to
+		base	->	receiver
+					(arg0)
+					(arg1)
+		sp		->	retpc			(send site retpc)"
+	self subclassResponsibility
+]
+
+{ #category : 'smalltalk calling convention' }
 CogAbstractInstruction >> genSaveStackPointers [
 	"Save the frame and stack pointer registers to the framePointer
 	 and stackPointer variables.  Used to save the machine code frame
@@ -1148,6 +1170,12 @@ CogAbstractInstruction >> isBigEndian [
 { #category : 'testing' }
 CogAbstractInstruction >> isCallPrecedingReturnPC: mcpc [
 	"Assuming mcpc is a send return pc answer if the instruction before it is a call (not a CallFull)."
+	^self subclassResponsibility
+]
+
+{ #category : 'testing' }
+CogAbstractInstruction >> isCallRPrecedingReturnPC: mcpc [
+	"Assuming mcpc is a send return pc answer if the instruction before it is a CallR."
 	^self subclassResponsibility
 ]
 

@@ -4194,7 +4194,7 @@ CogARMv8Compiler >> genPushRegisterArgsForPolymorphicSendTrampoline: numArgs [
 	 us a lot of work."
 
 	"Iff there are register args convert
-		lingReg = retpc			(send site retpc)
+		linkReg = retpc			(send site retpc)
 	 to
 		base	->	receiver
 					(arg0)
