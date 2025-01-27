@@ -4318,6 +4318,22 @@ CogX64Compiler >> isCallPrecedingReturnPC: mcpc [
 	^(objectMemory byteAt: mcpc - 5) = 16rE8
 ]
 
+{ #category : 'testing' }
+CogX64Compiler >> isCallRPrecedingReturnPC: mcpc [
+	"Assuming mcpc is a send return pc answer if the instruction before it is a CallR.
+
+	 Check for opcode FF/2 with a register-to-register mod.
+
+	 ModRM byte is:
+	   - Mod: 2r11 (reg-to-reg)
+	   - Reg: 2r010 (extra bits of opcode info)
+	   - RM: ??? (register to use)
+	That's the same as 2r11010000"
+
+	^ (objectMemory byteAt: mcpc - 2) = 16rFF and: [
+		  ((objectMemory byteAt: mcpc - 1) bitAnd: 2r11111000) = 2r11010000 ]
+]
+
 { #category : 'disassembly' }
 CogX64Compiler >> isJumpAt: pc [
 	| op |
