@@ -8233,7 +8233,7 @@ Cogit >> isPrimitiveRunningInSmalltalkStack: aSelector [
 { #category : 'method map' }
 Cogit >> isSendAnnotation: annotation [
 	<inline: true>
-	^annotation >= IsSendCall
+	^ annotation isNotNil and: [ annotation >= IsSendCall ]
 ]
 
 { #category : 'jit - api' }

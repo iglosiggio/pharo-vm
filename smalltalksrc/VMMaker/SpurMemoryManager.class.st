@@ -4042,7 +4042,7 @@ SpurMemoryManager >> clearPolymorphicSendEntry: i ofICTable: icTable [
 		storePointer:
 		ICCacheEntryStart + (ICCacheEntrySlotCount * i) + ICCacheTagOffset
 		ofObject: icTable
-		withValue: self illegalClassTag. "FIXME: should be the illegal class tag"
+		withValue: self illegalClassTag.
 	self
 		storePointer:
 		ICCacheEntryStart + (ICCacheEntrySlotCount * i) + ICCacheOperandOffset
@@ -4052,7 +4052,7 @@ SpurMemoryManager >> clearPolymorphicSendEntry: i ofICTable: icTable [
 		storePointer:
 		ICCacheEntryStart + (ICCacheEntrySlotCount * i) + ICCacheValueOffset
 		ofObject: icTable
-		withValue: nil
+		withValue: 0
 ]
 
 { #category : 'become implementation' }
