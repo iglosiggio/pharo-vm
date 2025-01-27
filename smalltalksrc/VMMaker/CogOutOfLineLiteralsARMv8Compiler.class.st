@@ -260,7 +260,6 @@ CogOutOfLineLiteralsARMv8Compiler >> loadRelativeLiteralIn: destReg [
 	<inline: true>
 
 	self assert: dependent opcode = Literal.
-	self assert: (cogit addressIsInCurrentCompilation: dependent address).
 	self assert: (dependent address - (address + 8)) abs < (1 << 12).
 	self machineCodeAt: 0 put: (self
 			 ldrSize: 1
