@@ -3255,9 +3255,9 @@ Cogit >> assertValidICTable: icTable duringGC: duringGC [
 	handler := objectMemory fetchPointer: ICHandlerIndex ofObject: icTable.
 	selector := objectMemory fetchPointer: ICSelectorIndex ofObject: icTable.
 
-	self assert: (objectMemory isNotForwarded: selector).
 	self assert: ((objectMemory isImmediate: selector) or: [
 			 objectRepresentation couldBeObject: selector ]).
+	self assert: (objectMemory isNotForwarded: selector).
 
 	(self isPolymorphicICTableHandler: handler) ifTrue: [ "
 		Case: Polymorphic send"
@@ -3266,18 +3266,21 @@ Cogit >> assertValidICTable: icTable duringGC: duringGC [
 				ifTrue: [
 					| isMNU |
 					duringGC ifFalse: [ self assert: (objectMemory isValidClassTag: tag) ].
+					"NOTE: Esto está mal porque #run:with:in: cachea objetos arbitrarios!"
 					self assert:
 						(operand = objectMemory nilObject or: [
 							 objectMemory isCompiledMethod: operand ]).
-					self assert: ((methodZone isInMethodZone: value) or: [
+					self assert:
+						((methodZone isInMethodZone: value) or: [
 							 (self
 								  sendTrampolineTable: polymorphicSendInterpretTrampolines
 								  includes: value) or: [
 								 self sendTrampolineTable: polymorphicSendMNUTrampolines includes: value ] ]).
 					(methodZone isInMethodZone: value) ifTrue: [
+						"Si value apunta a la method zone entonces el operando debería ser un compiled method"
 						duringGC ifFalse: [
-							cogMethod := coInterpreter cogMethodOf: operand.
 							self assert: (coInterpreter methodHasCogMethod: operand).
+							cogMethod := coInterpreter cogMethodOf: operand.
 							self assert: (cogMethod containsAddress: value).
 							self assert: cogMethod cmType = CMMethod ].
 						isMNU := self
@@ -11282,8 +11285,9 @@ Cogit >> unlinkIfFreeOrLinkedSend: annotation pc: mcpc of: theSelector [
 		unlinkSendTargetsOf: icTable
 		annotation: annotation
 		if: [ :tag :operand :value |
-			(self cCoerceSimple: value to: #'CogMethod *') cmType or: [
-				selector = theSelector ] ].
+			selector = theSelector or: [
+				(methodZone isInMethodZone: value) and: [
+					(self cCoerceSimple: value to: #'CogMethod *') cmType = CMFree ] ] ].
 
 	^ 0 "keep scanning"
 ]
