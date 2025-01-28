@@ -1393,6 +1393,8 @@ CoInterpreter >> cePolymorphicSendInterpret: icTable method: aMethodObj receiver
 	self assert: (objectMemory isNotForwarded: icTable).
 	self assert: (objectMemory isNotForwarded: aMethodObj).
 	self assert: (objectMemory isNotForwarded: rcvr).
+	"NOTE: the assertion below is wrong #run:with:in:"
+	self assert: (objectMemory isCompiledMethod: aMethodObj).
 
 	(self methodHasCogMethod: aMethodObj) ifTrue: [
 		| cogMethod |

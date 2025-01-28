@@ -4184,7 +4184,7 @@ CogARMv8Compiler >> genPushRegisterArgsForNumArgs: numArgs scratchReg: ignored [
 ]
 
 { #category : 'smalltalk calling convention' }
-CogARMv8Compiler >> genPushRegisterArgsForPolymorphicSendTrampoline: numArgs [
+CogARMv8Compiler >> genPushRegisterArgsForPolymorphicSendTrampoline: numArgs scratchReg: anObject [
 	"Ensure that the register args are pushed before the retpc at a
 	 polymorphic send miss for arity <= self numRegArgs.  The retpc
 	  is that of a call at a send site."
@@ -4205,7 +4205,10 @@ CogARMv8Compiler >> genPushRegisterArgsForPolymorphicSendTrampoline: numArgs [
 		cogit PushR: ReceiverResultReg.
 		1 <= numArgs ifTrue: [ cogit PushR: Arg0Reg ].
 		2 <= numArgs ifTrue: [ cogit PushR: Arg1Reg ].
-		self assert: numArgs <= 2 ].
+		self assert: numArgs <= 2.
+
+		"Sends with a small number of arguments carry their count implicitly. Time to make it explicit"
+		cogit MoveCq: numArgs R: SendNumArgsReg ].
 	cogit PushR: LinkReg
 ]
 

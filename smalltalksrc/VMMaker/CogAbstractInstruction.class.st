@@ -914,7 +914,7 @@ CogAbstractInstruction >> genPushRegisterArgsForNumArgs: numArgs scratchReg: scr
 ]
 
 { #category : 'smalltalk calling convention' }
-CogAbstractInstruction >> genPushRegisterArgsForPolymorphicSendTrampoline: numArgs [
+CogAbstractInstruction >> genPushRegisterArgsForPolymorphicSendTrampoline: numArgs scratchReg: anObject [
 	"Ensure that the register args are pushed before the retpc at a
 	 polymorphic send miss for arity <= self numRegArgs.  The retpc
 	  is that of a call at a send site."

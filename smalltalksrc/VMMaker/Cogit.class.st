@@ -6670,14 +6670,19 @@ Cogit >> genPolymorphicSendInterpretTrampoline: numArgs [
 	<flag: #workingSet>
 	self zeroOpcodeIndex.
 
+	backEnd
+		genPushRegisterArgsForPolymorphicSendTrampoline: numArgs
+		scratchReg: TempReg.
 	"Sends with a small number of arguments carry their count implicitly. Time to make it explicit"
-	numArgs <= objectRepresentation numRegArgs ifTrue: [
+	numArgs <= self numRegArgs ifTrue: [
 		self MoveCq: numArgs R: SendNumArgsReg ].
-
-	backEnd genPushRegisterArgsForPolymorphicSendTrampoline: numArgs.
 	^ self
-		  genTrampolineFor: #cePolymorphicSendInterpret:method:receiver:numArgs:
-		  called: (self trampolineName: 'cePolymorphicSendInterpret' numArgs: numArgs)
+		  genTrampolineFor:
+		  #cePolymorphicSendInterpret:method:receiver:numArgs:
+		  called:
+		  (self
+			   trampolineName: 'cePolymorphicSendInterpret'
+			   numArgs: numArgs)
 		  numArgs: 4
 		  arg: ClassReg
 		  arg: Extra0Reg
@@ -6695,14 +6700,16 @@ Cogit >> genPolymorphicSendMNUTrampoline: numArgs [
 	<flag: #workingSet>
 	self zeroOpcodeIndex.
 
+	backEnd
+		genPushRegisterArgsForPolymorphicSendTrampoline: numArgs
+		scratchReg: TempReg.
 	"Sends with a small number of arguments carry their count implicitly. Time to make it explicit"
-	numArgs <= objectRepresentation numRegArgs ifTrue: [
+	numArgs <= self numRegArgs ifTrue: [
 		self MoveCq: numArgs R: SendNumArgsReg ].
-
-	backEnd genPushRegisterArgsForPolymorphicSendTrampoline: numArgs.
 	^ self
 		  genTrampolineFor: #cePolymorphicSendMNU:method:receiver:numArgs:
-		  called: (self trampolineName: 'cePolymorphicSendMNU' numArgs: numArgs)
+		  called:
+		  (self trampolineName: 'cePolymorphicSendMNU' numArgs: numArgs)
 		  numArgs: 4
 		  arg: ClassReg
 		  arg: Extra0Reg
@@ -6747,12 +6754,14 @@ Cogit >> genPolymorphicSendTrampoline: numArgs [
 		jumpNext := self JumpNonZero: 0.
 		objectRepresentation
 			genLoadSlot:
-			ICCacheEntryStart + (ICCacheEntrySlotCount * i) + ICCacheOperandOffset
+			ICCacheEntryStart + (ICCacheEntrySlotCount * i)
+			+ ICCacheOperandOffset
 			sourceReg: ClassReg
 			destReg: Extra0Reg.
 		objectRepresentation
 			genLoadSlot:
-			ICCacheEntryStart + (ICCacheEntrySlotCount * i) + ICCacheValueOffset
+			ICCacheEntryStart + (ICCacheEntrySlotCount * i)
+			+ ICCacheValueOffset
 			sourceReg: ClassReg
 			destReg: TempReg.
 		self JumpR: TempReg.
@@ -6765,14 +6774,16 @@ Cogit >> genPolymorphicSendTrampoline: numArgs [
 		ifForwarder: start
 		ifNotForwarder: 0.
 
+	backEnd
+		genPushRegisterArgsForPolymorphicSendTrampoline: numArgs
+		scratchReg: TempReg.
 	"Sends with a small number of arguments carry their count implicitly. Time to make it explicit"
-	numArgs <= objectRepresentation numRegArgs ifTrue: [
+	numArgs <= self numRegArgs ifTrue: [
 		self MoveCq: numArgs R: SendNumArgsReg ].
-
-	backEnd genPushRegisterArgsForPolymorphicSendTrampoline: numArgs.
 	^ self
 		  genTrampolineFor: #cePolymorphicSendMiss:receiver:numArgs:
-		  called: (self trampolineName: 'cePolymorphicSend' numArgs: numArgs)
+		  called:
+		  (self trampolineName: 'cePolymorphicSend' numArgs: numArgs)
 		  numArgs: 3
 		  arg: ClassReg
 		  arg: ReceiverResultReg

@@ -479,7 +479,7 @@ CogX64Compiler >> computeMaximumSize [
 		"Control"
 		[CallFull]					-> [^12].
 		[Call]						-> [^5].
-		[CallR]						-> [^3].
+		[CallR]						-> [^5].
 		[JumpR]					-> [^3].
 		[JumpFull]					-> [self resolveJumpTarget. ^12].
 		[JumpLong]					-> [self resolveJumpTarget. ^5].
@@ -1081,12 +1081,16 @@ CogX64Compiler >> concretizeCallR [
 	"Will get inlined into concretizeAt: switch."
 	<inline: true>
 	| reg |
+	
+	"FIXME: #isCallRPrecedingReturnPC: wants to have two nops prefixing the instruction in a hopeless attempt to reduce false positives"
 	reg := operands at: 0.
 	machineCode
-		at: 0 put: (self rexR: 0 x: 0 b: reg);
-		at: 1 put: 16rFF;
-		at: 2 put: (self mod: ModReg RM: reg RO: 2).
-	^machineCodeSize := 3
+		at: 0 put: 16r90;
+		at: 1 put: 16r90;
+		at: 2 put: (self rexR: 0 x: 0 b: reg);
+		at: 3 put: 16rFF;
+		at: 4 put: (self mod: ModReg RM: reg RO: 2).
+	^machineCodeSize := 5
 ]
 
 { #category : 'generate machine code' }
@@ -4068,7 +4072,7 @@ CogX64Compiler >> genPushRegisterArgsForNumArgs: numArgs scratchReg: scratchReg 
 ]
 
 { #category : 'smalltalk calling convention' }
-CogX64Compiler >> genPushRegisterArgsForPolymorphicSendTrampoline: numArgs [
+CogX64Compiler >> genPushRegisterArgsForPolymorphicSendTrampoline: numArgs scratchReg: scratchReg [
 	"Ensure that the register args are pushed before the retpc at a
 	 polymorphic send miss for arity <= self numRegArgs.  The retpc
 	  is that of a call at a send site."
@@ -4085,13 +4089,14 @@ CogX64Compiler >> genPushRegisterArgsForPolymorphicSendTrampoline: numArgs [
 					(arg1)
 		sp		->	retpc			(send site retpc)"
 
-	numArgs <= cogit numRegArgs ifTrue: [
-		cogit PopR: TempReg.
-		cogit PushR: ReceiverResultReg.
+	numArgs <= cogit numRegArgs ifTrue: [ "
+		Load retpc on scratch and replace it by the receiver"
+		cogit MoveMw: 0 r: SPReg R: scratchReg.
+		cogit MoveR: ReceiverResultReg Mw: 0 r: SPReg.
 		1 <= numArgs ifTrue: [ cogit PushR: Arg0Reg ].
 		2 <= numArgs ifTrue: [ cogit PushR: Arg1Reg ].
 		self assert: numArgs <= 2.
-		cogit PushR: TempReg ].
+		cogit PushR: scratchReg ]
 ]
 
 { #category : 'abstract instructions' }
@@ -4330,8 +4335,14 @@ CogX64Compiler >> isCallRPrecedingReturnPC: mcpc [
 	   - RM: ??? (register to use)
 	That's the same as 2r11010000"
 
-	^ (objectMemory byteAt: mcpc - 2) = 16rFF and: [
-		  ((objectMemory byteAt: mcpc - 1) bitAnd: 2r11111000) = 2r11010000 ]
+	"FIXME: #concretizeCallR always prefixes the instruction with two nops in a hopeless attempt to reduce false positives"
+	^ (objectMemory byteAt: mcpc - 5) = 16r90 and: [
+		  (objectMemory byteAt: mcpc - 4) = 16r90 and: [
+			  ((objectMemory byteAt: mcpc - 3) bitAnd: 2r11111000) = 16r48
+				  and: [
+					  (objectMemory byteAt: mcpc - 2) = 16rFF and: [
+						  ((objectMemory byteAt: mcpc - 1) bitAnd: 2r11111000)
+						  = 2r11010000 ] ] ] ]
 ]
 
 { #category : 'disassembly' }
