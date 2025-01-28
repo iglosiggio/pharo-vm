@@ -8981,8 +8981,8 @@ Cogit >> markAndTraceOopsInPolymorphicICTable: icTable from: cogMethod [
 			objectMemory storePointer: operandIndex ofObject: icTable withValue: operand.
 
 			(objectMemory isYoung: operand) ifTrue: [
-				methodZone ensureInYoungReferrers: cogMethod ].
-			objectMemory markAndTrace: operand ] ]
+				methodZone ensureInYoungReferrers: cogMethod ] ].
+		objectMemory markAndTrace: operand ]
 ]
 
 { #category : 'garbage collection' }
@@ -9041,14 +9041,9 @@ Cogit >> markLiterals: annotation pc: mcpc method: cogMethod [
 			 atpc: mcpc asUnsignedInteger) ifTrue: [ codeModified := true ].
 		icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
 		self assertValidICTable: icTable duringGC: true.
-		selector := objectRepresentation
-			            fetchPointer: ICSelectorIndex
-			            ofObject: icTable.
 
 		"We have to manually mark the selector because the ICTable is opaque (just a byte array)"
-		selector := objectRepresentation
-			            fetchPointer: ICSelectorIndex
-			            ofObject: icTable.
+		selector := objectMemory fetchPointer: ICSelectorIndex ofObject: icTable.
 		(objectMemory isOopForwarded: selector) ifTrue: [
 			selector := objectMemory followForwarded: selector.
 			objectRepresentation
@@ -9056,8 +9051,8 @@ Cogit >> markLiterals: annotation pc: mcpc method: cogMethod [
 				ofObject: icTable
 				withValue: selector.
 			(objectMemory isYoung: selector) ifTrue: [
-				methodZone ensureInYoungReferrers: cogMethod ].
-			objectMemory markAndTrace: selector ].
+				methodZone ensureInYoungReferrers: cogMethod ] ].
+		objectMemory markAndTrace: selector.
 
 		(self isPolymorphicICTable: icTable) ifTrue: [
 			self markAndTraceOopsInPolymorphicICTable: icTable from: cogMethod ] ].
@@ -9094,8 +9089,8 @@ Cogit >> markLiteralsAndUnlinkIfUnmarkedSend: annotation pc: mcpc method: cogMet
 				ofObject: icTable
 				withValue: selector.
 			(objectMemory isYoung: selector) ifTrue: [
-				methodZone ensureInYoungReferrers: cogMethod ].
-			objectMemory markAndTrace: selector ].
+				methodZone ensureInYoungReferrers: cogMethod ] ].
+		objectMemory markAndTrace: selector.
 
 		self
 			unlinkSendTargetsOf: icTable
@@ -11302,6 +11297,7 @@ Cogit >> unlinkIfInvalidClassSend: annotation pc: mcpc ignored: superfluity [
 
 	<flag: #icTableInvalidation>
 	<flag: #workingSet>
+	<flag: #FIXME>
 	<var: #mcpc type: #'char *'>
 	| icTable handler |
 	(self isSendAnnotation: annotation) ifFalse: [ ^ 0 "keep scanning" ].
