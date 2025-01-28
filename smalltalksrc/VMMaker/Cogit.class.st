@@ -8252,13 +8252,7 @@ Cogit >> isSendReturnPC: retpc [
 	"Answer if the instruction preceding retpc is a call instruction."
 
 	<api>
-	| target |
-	(backEnd isCallPrecedingReturnPC: retpc) ifFalse: [ ^ false ].
-	"CallR is only used for message sends right now"
-	(backEnd isCallRPrecedingReturnPC: retpc) ifTrue: [ ^ true ].
-	target := backEnd callTargetFromReturnAddress: retpc.
-	^ (target between: firstSend and: lastSend) or: [
-		  target between: methodZoneBase and: methodZone freeStart ]
+	^ backEnd isCallRPrecedingReturnPC: retpc
 ]
 
 { #category : 'initialization' }
