@@ -3246,18 +3246,36 @@ Cogit >> assertValidICTable: icTable duringGC: duringGC [
 	<flag: #workingSet>
 	<var: #cogMethod type: #'CogMethod *'>
 	| handler selector cogMethod first |
-	duringGC ifTrue: [ ^ nil ":(" ].
-	^ nil.
 	self assert: (objectRepresentation couldBeObject: icTable).
 	self assert: (objectMemory isNotForwarded: icTable).
 	self assert: (objectRepresentation isBytesNonImm: icTable).
 
-	handler := objectMemory fetchPointer: ICHandlerIndex ofObject: icTable.
-	selector := objectMemory fetchPointer: ICSelectorIndex ofObject: icTable.
+	handler := objectMemory
+		           fetchPointer: ICHandlerIndex
+		           ofObject: icTable.
+	selector := objectMemory
+		            fetchPointer: ICSelectorIndex
+		            ofObject: icTable.
 
 	self assert: ((objectMemory isImmediate: selector) or: [
 			 objectRepresentation couldBeObject: selector ]).
 	self assert: (objectMemory isNotForwarded: selector).
+
+	self assert: ((self isPolymorphicICTableHandler: handler) or: [
+			 (methodZone isInMethodZone: handler) or: [
+				 (self
+					  sendTrampolineTable: ordinarySendTrampolines
+					  includes: handler) or: [
+					 (self
+						  sendTrampolineTable: superSendTrampolines
+						  includes: handler) or: [
+						 (self
+							  sendTrampolineTable: directedSuperSendTrampolines
+							  includes: handler) or: [
+							 self
+								 sendTrampolineTable: directedSuperBindingSendTrampolines
+								 includes: handler ] ] ] ] ]).
+	^ nil.
 
 	(self isPolymorphicICTableHandler: handler) ifTrue: [ "
 		Case: Polymorphic send"
@@ -3265,19 +3283,19 @@ Cogit >> assertValidICTable: icTable duringGC: duringGC [
 			tag ~= objectMemory illegalClassTag
 				ifTrue: [
 					| isMNU |
-					duringGC ifFalse: [ self assert: (objectMemory isValidClassTag: tag) ].
+					duringGC ifFalse: [
+						self assert: (objectMemory isValidClassTag: tag) ].
 					"NOTE: Esto está mal porque #run:with:in: cachea objetos arbitrarios!"
-					self assert:
-						(operand = objectMemory nilObject or: [
+					self assert: (operand = objectMemory nilObject or: [
 							 objectMemory isCompiledMethod: operand ]).
-					self assert:
-						((methodZone isInMethodZone: value) or: [
+					self assert: ((methodZone isInMethodZone: value) or: [
 							 (self
 								  sendTrampolineTable: polymorphicSendInterpretTrampolines
 								  includes: value) or: [
-								 self sendTrampolineTable: polymorphicSendMNUTrampolines includes: value ] ]).
-					(methodZone isInMethodZone: value) ifTrue: [
-						"Si value apunta a la method zone entonces el operando debería ser un compiled method"
+								 self
+									 sendTrampolineTable: polymorphicSendMNUTrampolines
+									 includes: value ] ]).
+					(methodZone isInMethodZone: value) ifTrue: [ "Si value apunta a la method zone entonces el operando debería ser un compiled method"
 						duringGC ifFalse: [
 							self assert: (coInterpreter methodHasCogMethod: operand).
 							cogMethod := coInterpreter cogMethodOf: operand.
@@ -3289,7 +3307,8 @@ Cogit >> assertValidICTable: icTable duringGC: duringGC [
 						isMNU ifTrue: [
 							| mnuSelector |
 							mnuSelector := objectMemory splObj: SelectorDoesNotUnderstand.
-							self assert: (coInterpreter findSelectorOfMethod: operand) = mnuSelector ] ] ]
+							self assert:
+								(coInterpreter findSelectorOfMethod: operand) = mnuSelector ] ] ]
 				ifFalse: [
 					self assert: operand = objectMemory nilObject.
 					self assert: value isNil ] ].
@@ -3298,10 +3317,14 @@ Cogit >> assertValidICTable: icTable duringGC: duringGC [
 	(methodZone isInMethodZone: handler) ifFalse: [ "
 		Case: Unlinked send"
 		self assert:
-			((self sendTrampolineTable: ordinarySendTrampolines includes: handler) or: [
-				 (self sendTrampolineTable: superSendTrampolines includes: handler) or: [
-					 (self sendTrampolineTable: directedSuperSendTrampolines includes: handler)
-						 or: [
+			((self
+				  sendTrampolineTable: ordinarySendTrampolines
+				  includes: handler) or: [
+				 (self sendTrampolineTable: superSendTrampolines includes: handler)
+					 or: [
+						 (self
+							  sendTrampolineTable: directedSuperSendTrampolines
+							  includes: handler) or: [
 							 self
 								 sendTrampolineTable: directedSuperBindingSendTrampolines
 								 includes: handler ] ] ]).
