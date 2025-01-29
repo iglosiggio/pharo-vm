@@ -10517,6 +10517,10 @@ Cogit >> remapIfObjectRef: annotation pc: mcpc hasYoung: hasYoungPtr [
 		(hasYoungPtr ~= 0 and: [ objectMemory isYoung: mappedIcTable ])
 			ifTrue: [
 			(self cCoerceSimple: hasYoungPtr to: #'sqInt *') at: 0 put: true ].
+		objectMemory scavengeInProgress ifTrue: [ "
+			During a scavenge the data is moved to the mapped object.
+			Otherwise the data is still on the original place"
+			icTable := mappedIcTable ].
 
 		selector := objectRepresentation
 			            fetchPointer: ICSelectorIndex

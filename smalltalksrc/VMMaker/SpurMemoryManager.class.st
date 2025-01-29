@@ -11936,6 +11936,7 @@ SpurMemoryManager >> safePrintStringOf: oop [
 
 { #category : 'testing' }
 SpurMemoryManager >> scavengeInProgress [
+	<api>
 	^gcPhaseInProgress == ScavengeInProgress
 ]
 
