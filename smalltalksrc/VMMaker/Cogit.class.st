@@ -10506,51 +10506,62 @@ Cogit >> remapIfObjectRef: annotation pc: mcpc hasYoung: hasYoungPtr [
 	<var: #mcpc type: #'char *'>
 	annotation = IsObjectReference ifTrue: [
 		| literal mappedLiteral |
-		literal := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
+		literal := self fetchLiteralAtAnnotatedAddress:
+			           mcpc asUnsignedInteger.
 		(objectRepresentation couldBeObject: literal) ifTrue: [
 			mappedLiteral := objectRepresentation remapObject: literal.
 			literal ~= mappedLiteral ifTrue: [
-				self storeLiteral: mappedLiteral atAnnotatedAddress: mcpc asUnsignedInteger.
+				self
+					storeLiteral: mappedLiteral
+					atAnnotatedAddress: mcpc asUnsignedInteger.
 				codeModified := true ].
-			(hasYoungPtr ~= 0 and: [ objectMemory isYoung: mappedLiteral ]) ifTrue: [
+			(hasYoungPtr ~= 0 and: [ objectMemory isYoung: mappedLiteral ])
+				ifTrue: [
 				(self cCoerceSimple: hasYoungPtr to: #'sqInt *') at: 0 put: true ] ] ].
 
 	(self isSendAnnotation: annotation) ifTrue: [
 		| icTable mappedIcTable selector mappedSelector |
-		icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
+		icTable := self fetchLiteralAtAnnotatedAddress:
+			           mcpc asUnsignedInteger.
 		mappedIcTable := objectRepresentation remapObject: icTable.
 		icTable ~= mappedIcTable ifTrue: [
-			self storeLiteral: mappedIcTable atAnnotatedAddress: mcpc asUnsignedInteger.
+			self
+				storeLiteral: mappedIcTable
+				atAnnotatedAddress: mcpc asUnsignedInteger.
 			codeModified := true ].
-		(hasYoungPtr ~= 0 and: [ objectMemory isYoung: mappedIcTable ]) ifTrue: [
+		(hasYoungPtr ~= 0 and: [ objectMemory isYoung: mappedIcTable ])
+			ifTrue: [
 			(self cCoerceSimple: hasYoungPtr to: #'sqInt *') at: 0 put: true ].
 
 		selector := objectRepresentation
 			            fetchPointer: ICSelectorIndex
 			            ofObject: icTable.
-		mappedSelector := objectMemory remapOop: selector.
+		mappedSelector := objectMemory remapObject: selector.
 		selector ~= mappedSelector ifTrue: [
 			objectRepresentation
 				storePointer: ICSelectorIndex
 				ofObject: icTable
 				withValue: mappedSelector ].
-		(hasYoungPtr ~= 0 and: [ objectMemory isYoung: mappedSelector ]) ifTrue: [
+		(hasYoungPtr ~= 0 and: [ objectMemory isYoung: mappedSelector ])
+			ifTrue: [
 			(self cCoerceSimple: hasYoungPtr to: #'sqInt *') at: 0 put: true ].
 
-		(self isPolymorphicICTable: icTable) ifTrue: [
-			0 to: ICCacheEntryCount - 1 do: [ :i |
-				| operandIndex operand mappedOperand |
-				operandIndex := ICCacheEntryStart + (ICCacheEntrySlotCount * i)
-				                + ICCacheOperandOffset.
-				operand := objectMemory fetchPointer: operandIndex ofObject: icTable.
-				mappedOperand := objectRepresentation remapOop: operand.
-				operand ~= mappedOperand ifTrue: [
-					objectRepresentation
-						storePointer: operandIndex
-						ofObject: icTable
-						withValue: mappedOperand ].
-				(hasYoungPtr ~= 0 and: [ objectMemory isYoung: mappedOperand ]) ifTrue: [
-					(self cCoerceSimple: hasYoungPtr to: #'sqInt *') at: 0 put: true ] ] ] ].
+		0 to: ICCacheEntryCount - 1 do: [ :i |
+			| operandIndex operand mappedOperand |
+			operandIndex := ICCacheEntryStart + (ICCacheEntrySlotCount * i)
+			                + ICCacheOperandOffset.
+			operand := objectMemory
+				           fetchPointer: operandIndex
+				           ofObject: icTable.
+			mappedOperand := objectRepresentation remapObject: operand.
+			operand ~= mappedOperand ifTrue: [
+				objectRepresentation
+					storePointer: operandIndex
+					ofObject: icTable
+					withValue: mappedOperand ].
+			(hasYoungPtr ~= 0 and: [ objectMemory isYoung: mappedOperand ])
+				ifTrue: [
+				(self cCoerceSimple: hasYoungPtr to: #'sqInt *') at: 0 put: true ] ] ].
 
 	^ 0 "keep scanning"
 ]
