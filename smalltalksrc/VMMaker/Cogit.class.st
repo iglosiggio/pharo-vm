@@ -11316,7 +11316,6 @@ Cogit >> unlinkIfInvalidClassSend: annotation pc: mcpc ignored: superfluity [
 	self assertValidICTable: icTable duringGC: true.
 	handler := objectRepresentation fetchPointer: ICHandlerIndex ofObject: icTable.
 
-	"FIXME: (self annotationIsForUncheckedEntryPoint: annotation) was considered before"
 	self
 		unlinkSendTargetsOf: icTable
 		annotation: annotation
