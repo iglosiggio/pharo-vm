@@ -8982,7 +8982,7 @@ Cogit >> markAndTraceOopsInPolymorphicICTable: icTable from: cogMethod [
 
 			(objectMemory isYoung: operand) ifTrue: [
 				methodZone ensureInYoungReferrers: cogMethod ] ].
-		objectMemory markAndTrace: operand ]
+		objectRepresentation markAndTraceLiteral: operand ]
 ]
 
 { #category : 'garbage collection' }
@@ -9052,7 +9052,7 @@ Cogit >> markLiterals: annotation pc: mcpc method: cogMethod [
 				withValue: selector.
 			(objectMemory isYoung: selector) ifTrue: [
 				methodZone ensureInYoungReferrers: cogMethod ] ].
-		objectMemory markAndTrace: selector.
+		objectMemory markAndTraceLiteral: selector.
 
 		(self isPolymorphicICTable: icTable) ifTrue: [
 			self markAndTraceOopsInPolymorphicICTable: icTable from: cogMethod ] ].
@@ -9090,7 +9090,7 @@ Cogit >> markLiteralsAndUnlinkIfUnmarkedSend: annotation pc: mcpc method: cogMet
 				withValue: selector.
 			(objectMemory isYoung: selector) ifTrue: [
 				methodZone ensureInYoungReferrers: cogMethod ] ].
-		objectMemory markAndTrace: selector.
+		objectMemory markAndTraceLiteral: selector.
 
 		self
 			unlinkSendTargetsOf: icTable
