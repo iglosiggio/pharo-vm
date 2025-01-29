@@ -8886,7 +8886,6 @@ Cogit >> markAndTraceLiteralsIn: cogMethod [
 		markAndTraceLiteral: cogMethod selector
 		in: cogMethod
 		at: (self addressOf: cogMethod selector put: [:val| cogMethod selector: val]).
-	self maybeMarkCountersIn: cogMethod.
 	self mapFor: cogMethod
 		 performUntil: #markLiterals:pc:method:
 		 arg: cogMethod asInteger
@@ -9276,13 +9275,6 @@ Cogit >> maybeFreeCounters [
 	"No-op in the non-Sista Cogits..."
 ]
 
-{ #category : 'compaction' }
-Cogit >> maybeFreeCountersOf: aCogMethod [
-	"Sista allocates counters out-of-line that need to be freed later on.
-	 This is the hook Sista uses.  By default do nothing."
-	<inline: true>
-]
-
 { #category : 'initialization' }
 Cogit >> maybeGenerateCheckFeatures [
 	| startAddress |
@@ -9315,13 +9307,6 @@ Cogit >> maybeHaltIfDebugPC [
 	((debugBytecodePointers includes: bytecodePC)
 	 and: [breakMethod isNil or: [methodObj = breakMethod]]) ifTrue:
 		[self halt: ' at bcpc ', bytecodePC printString, '/', (bytecodePC + 1) printString]
-]
-
-{ #category : 'garbage collection' }
-Cogit >> maybeMarkCountersIn: cogMethod [
-	"In SIsta Spur counters are held on the heap in pinned objects which must be marked
-	 to avoid them being garbage collected.  This is the hook through which that happens."
-	<var: #cogMethod type: #'CogMethod *'>
 ]
 
 { #category : 'disassembly' }

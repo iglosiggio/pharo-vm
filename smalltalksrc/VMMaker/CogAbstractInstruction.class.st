@@ -1634,13 +1634,6 @@ CogAbstractInstruction >> rewriteCallFullAt: callSiteReturnAddress target: callT
 	^self rewriteCallAt: callSiteReturnAddress target: callTargetAddress
 ]
 
-{ #category : 'inline cacheing' }
-CogAbstractInstruction >> rewriteInlineCacheTag: cacheTag at: callSiteReturnAddress [
-	"Rewrite an inline cache with a new tag.  This variant is used
-	 by the garbage collector."
-	self subclassResponsibility
-]
-
 { #category : 'full transfer run-time support' }
 CogAbstractInstruction >> rewriteJumpFullAt: callSiteReturnAddress target: callTargetAddress [
 	"Rewrite a JumpFull instruction to jump to a different target.  This variant is used to rewrite cached primitive calls.

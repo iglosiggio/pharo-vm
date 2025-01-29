@@ -4649,13 +4649,6 @@ CogX64Compiler >> rewriteInlineCacheAt: callSiteReturnAddress tag: cacheTag targ
 	^12
 ]
 
-{ #category : 'inline cacheing' }
-CogX64Compiler >> rewriteInlineCacheTag: cacheTag at: callSiteReturnAddress [
-	"Rewrite an inline cache with a new tag.  This variant is used
-	 by the garbage collector."
-	self unalignedLong32At: callSiteReturnAddress - 9 put: cacheTag
-]
-
 { #category : 'full transfer run-time support' }
 CogX64Compiler >> rewriteJumpFullAt: callSiteReturnAddress target: callTargetAddress [
 	"Rewrite a JumpFull instruction to jump to a different target.  This variant is used to rewrite cached primitive calls.

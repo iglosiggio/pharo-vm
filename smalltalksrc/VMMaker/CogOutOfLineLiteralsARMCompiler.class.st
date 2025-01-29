@@ -186,14 +186,6 @@ CogOutOfLineLiteralsARMCompiler >> rewriteFullTransferAt: callSiteReturnAddress 
 	^0
 ]
 
-{ #category : 'inline cacheing' }
-CogOutOfLineLiteralsARMCompiler >> rewriteInlineCacheTag: cacheTag at: callSiteReturnAddress [
-	"Rewrite an inline cache with a new tag.  This variant is used
-	 by the garbage collector."
-	<inline: true>
-	objectMemory longAt: (self pcRelativeAddressAt: callSiteReturnAddress - 8) put: cacheTag
-]
-
 { #category : 'generate machine code' }
 CogOutOfLineLiteralsARMCompiler >> setLiteralOpcodeIndex: index [
 	"Hack:  To know how far away a literal is from its referencing instruction we store

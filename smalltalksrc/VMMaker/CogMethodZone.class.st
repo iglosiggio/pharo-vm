@@ -330,8 +330,7 @@ CogMethodZone >> freeMethod: cogMethod [
 			ifFalse: [
 				self assert:
 					(cogit noAssertMethodClassAssociationOf: cogMethod methodObject)
-					= objectMemory nilObject ].
-		cogit maybeFreeCountersOf: cogMethod ].
+					= objectMemory nilObject ] ].
 	cogMethod cmType = CMMegamorphicIC ifTrue: [
 		self removeFromOpenPICList: cogMethod ].
 	cogMethod cmRefersToYoung: false.

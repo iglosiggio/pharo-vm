@@ -3940,17 +3940,6 @@ CogIA32Compiler >> rewriteInlineCacheAt: callSiteReturnAddress tag: cacheTag tar
 ]
 
 { #category : 'inline cacheing' }
-CogIA32Compiler >> rewriteInlineCacheTag: cacheTag at: callSiteReturnAddress [
-	"Rewrite an inline cache with a new tag.  This variant is used
-	 by the garbage collector."
-	objectMemory
-		byteAt: callSiteReturnAddress - 6 put: (cacheTag >> 24 bitAnd: 16rFF);
-		byteAt: callSiteReturnAddress - 7 put: (cacheTag >> 16 bitAnd: 16rFF);
-		byteAt: callSiteReturnAddress - 8 put: (cacheTag >>   8 bitAnd: 16rFF);
-		byteAt: callSiteReturnAddress - 9 put: (cacheTag            bitAnd: 16rFF)
-]
-
-{ #category : 'inline cacheing' }
 CogIA32Compiler >> rewriteJumpLongAt: callSiteReturnAddress target: callTargetAddress [
 	"Rewrite a long jump instruction to jump to a different target.  This variant
 	 is used to rewrite cached primitive calls.   Answer the extent of the

@@ -172,13 +172,6 @@ CogInLineLiteralsARMCompiler >> rewriteInlineCacheAt: callSiteReturnAddress tag:
 	^20
 ]
 
-{ #category : 'inline cacheing' }
-CogInLineLiteralsARMCompiler >> rewriteInlineCacheTag: cacheTag at: callSiteReturnAddress [
-	"Rewrite an inline cache with a new tag.  This variant is used
-	 by the garbage collector."
-	self insert32BitOperand: cacheTag into4InstructionsPreceding: callSiteReturnAddress -4
-]
-
 { #category : 'generate machine code' }
 CogInLineLiteralsARMCompiler >> sizePCDependentInstructionAt: eventualAbsoluteAddress [
 	"Size a jump and set its address.  The target may be another instruction
