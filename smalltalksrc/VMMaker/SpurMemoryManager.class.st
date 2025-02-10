@@ -1903,11 +1903,8 @@ SpurMemoryManager >> allocateICTable: selectorOop withUnlinkedHandler: unlinkedT
 		          (self byteFormatForNumBytes: tableSlotCount * self bytesPerOop)
 		          classIndex: ClassByteArrayCompactIndex.
 	result ifNotNil: [
-		self storePointer: ICSelectorIndex ofObject: result withValue: selectorOop.
-		self
-			storePointer: ICHandlerIndex
-			ofObject: result
-			withValue: unlinkedTrampoline.
+		self storeSelectorOfTable: result with: selectorOop.
+		self storeHandlerOfTable: result with: unlinkedTrampoline.
 		self clearAllICTableEntries: result ].
 	^ result
 ]
@@ -2975,6 +2972,34 @@ SpurMemoryManager >> bytesPerOop [
 	self subclassResponsibility
 ]
 
+{ #category : 'ic table access' }
+SpurMemoryManager >> cacheOperandSlotForICTableEntry: i [
+
+	<api>
+	^ ICCacheEntryStart + (ICCacheEntrySlotCount * i) + ICCacheOperandOffset
+]
+
+{ #category : 'ic table access' }
+SpurMemoryManager >> cacheTagSlotForICTableEntry: i [
+
+	<api>
+	^ ICCacheEntryStart + (ICCacheEntrySlotCount * i) + ICCacheTagOffset
+]
+
+{ #category : 'ic table access' }
+SpurMemoryManager >> cacheTagSlotForMonomorphicallyLinkedSend [
+
+	<api>
+	^ self cacheTagSlotForICTableEntry: 0
+]
+
+{ #category : 'ic table access' }
+SpurMemoryManager >> cacheValueSlotForICTableEntry: i [
+
+	<api>
+	^ ICCacheEntryStart + (ICCacheEntrySlotCount * i) + ICCacheValueOffset
+]
+
 { #category : 'obj stacks' }
 SpurMemoryManager >> capacityOfObjStack: objStack [
 	| total freeObj |
@@ -4038,21 +4063,9 @@ SpurMemoryManager >> clearPolymorphicSendEntry: i ofICTable: icTable [
 
 	<api>
 	<flag: #workingSet>
-	self
-		storePointer:
-		ICCacheEntryStart + (ICCacheEntrySlotCount * i) + ICCacheTagOffset
-		ofObject: icTable
-		withValue: self illegalClassTag.
-	self
-		storePointer:
-		ICCacheEntryStart + (ICCacheEntrySlotCount * i) + ICCacheOperandOffset
-		ofObject: icTable
-		withValue: self nilObject.
-	self
-		storePointer:
-		ICCacheEntryStart + (ICCacheEntrySlotCount * i) + ICCacheValueOffset
-		ofObject: icTable
-		withValue: 0
+	self storeCacheTag: i ofTable: icTable with: self illegalClassTag.
+	self storeCacheOperand: i ofTable: icTable with: self nilObject.
+	self storeCacheValue: i ofTable: icTable with: 0
 ]
 
 { #category : 'become implementation' }
@@ -5122,6 +5135,33 @@ SpurMemoryManager >> fetchByte: byteIndex ofObject: objOop [
 	^self byteAt: objOop + self baseHeaderSize + byteIndex
 ]
 
+{ #category : 'ic table access' }
+SpurMemoryManager >> fetchCacheOperand: entryIndex ofTable: icTable [
+
+	<api>
+	^ self
+		fetchPointer: (self cacheOperandSlotForICTableEntry: entryIndex)
+		ofObject: icTable
+]
+
+{ #category : 'ic table access' }
+SpurMemoryManager >> fetchCacheTag: entryIndex ofTable: icTable [
+
+	<api>
+	^ self
+		fetchPointer: (self cacheTagSlotForICTableEntry: entryIndex)
+		ofObject: icTable
+]
+
+{ #category : 'ic table access' }
+SpurMemoryManager >> fetchCacheValue: entryIndex ofTable: icTable [
+
+	<api>
+	^ self
+		fetchPointer: (self cacheValueSlotForICTableEntry: entryIndex)
+		ofObject: icTable
+]
+
 { #category : 'object access' }
 SpurMemoryManager >> fetchClassOf: oop [
 	"In 64 bits the tagBits are fixed and never used for anything else.
@@ -5182,6 +5222,13 @@ SpurMemoryManager >> fetchFloat64: index ofObject: objOop [
 	^self float64At: objOop + self baseHeaderSize + (index << 3)
 ]
 
+{ #category : 'ic table access' }
+SpurMemoryManager >> fetchHandlerOfTable: icTable [
+
+	<api>
+	^ self fetchPointer: ICHandlerIndex ofObject: icTable
+]
+
 { #category : 'simulation only' }
 SpurMemoryManager >> fetchInteger: fieldIndex ofObject: objectPointer [
 	"hack around the CoInterpreter/ObjectMemory split refactoring"
@@ -5221,6 +5268,13 @@ SpurMemoryManager >> fetchPointer: fieldIndex ofMaybeForwardedObject: objOop [
 SpurMemoryManager >> fetchPointer: fieldIndex ofObject: objOop [
 	<api>
 	^self unsignedLongAt: objOop + self baseHeaderSize + (fieldIndex << self shiftForWord)
+]
+
+{ #category : 'ic table access' }
+SpurMemoryManager >> fetchSelectorOfTable: icTable [
+
+	<api>
+	^ self fetchPointer: ICSelectorIndex ofObject: icTable
 ]
 
 { #category : 'object access' }
@@ -12802,6 +12856,36 @@ SpurMemoryManager >> storeByte: byteIndex ofObject: oop withValue: valueByte [
 	^self byteAt: oop + self baseHeaderSize + byteIndex put: valueByte
 ]
 
+{ #category : 'ic table access' }
+SpurMemoryManager >> storeCacheOperand: entryIndex ofTable: icTable with: operand [
+
+	<api>
+	self
+		storePointer: (self cacheOperandSlotForICTableEntry: entryIndex)
+		ofObject: icTable
+		withValue: operand
+]
+
+{ #category : 'ic table access' }
+SpurMemoryManager >> storeCacheTag: entryIndex ofTable: icTable with: cacheTag [
+
+	<api>
+	self
+		storePointer: (self cacheTagSlotForICTableEntry: entryIndex)
+		ofObject: icTable
+		withValue: cacheTag
+]
+
+{ #category : 'ic table access' }
+SpurMemoryManager >> storeCacheValue: entryIndex ofTable: icTable with: value [
+
+	<api>
+	self
+		storePointer: (self cacheValueSlotForICTableEntry: entryIndex)
+		ofObject: icTable
+		withValue: value
+]
+
 { #category : 'accessing' }
 SpurMemoryManager >> storeCheckBoundary [
 	"A renaming for the Cogit, which couldn't make sense of GIV(newSpaceLimit)"
@@ -12819,6 +12903,16 @@ SpurMemoryManager >> storeFloat32: index ofObject: objOop withValue: value [
 SpurMemoryManager >> storeFloat64: index ofObject: objOop withValue: value [ 
 	<var: #value type: #double>
 	^self float64At: objOop + self baseHeaderSize + (index << 3) put: value
+]
+
+{ #category : 'ic table access' }
+SpurMemoryManager >> storeHandlerOfTable: icTable with: aHandler [
+
+	<api>
+	self
+		storePointer: ICHandlerIndex
+		ofObject: icTable
+		withValue: aHandler
 ]
 
 { #category : 'simulation only' }
@@ -12951,6 +13045,16 @@ SpurMemoryManager >> storePointerUnchecked: fieldIndex ofObject: objOop withValu
 	^self
 		longAt: objOop + self baseHeaderSize + (fieldIndex << self shiftForWord)
 		put: valuePointer
+]
+
+{ #category : 'ic table access' }
+SpurMemoryManager >> storeSelectorOfTable: icTable with: aSelector [
+
+	<api>
+	self
+		storePointer: ICSelectorIndex
+		ofObject: icTable
+		withValue: aSelector
 ]
 
 { #category : 'object access' }

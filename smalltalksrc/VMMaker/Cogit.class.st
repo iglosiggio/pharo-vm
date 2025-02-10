@@ -3831,16 +3831,12 @@ Cogit >> cePolymorphicSendMiss: icTable receiver: receiver numArgs: numArgs [
 	tableEntry := 0.
 	[
 	| cacheTag |
-	cacheTag := objectMemory
-		            fetchPointer:
-		            ICCacheEntryStart + (ICCacheEntrySlotCount * tableEntry)
-		            + ICCacheTagOffset
-		            ofObject: icTable.
+	cacheTag := objectMemory fetchCacheTag: tableEntry ofTable: icTable.
 	cacheTag ~= objectRepresentation illegalClassTag and: [
 		tableEntry := tableEntry + 1.
 		tableEntry < ICCacheEntryCount ] ] whileTrue.
 
-	selector := objectMemory fetchPointer: ICSelectorIndex ofObject: icTable.
+	selector := objectMemory fetchSelectorOfTable: icTable.
 
 	"If the table is full let's switch to megamorphic"
 	tableEntry < ICCacheEntryCount ifFalse: [
@@ -3946,7 +3942,7 @@ Cogit >> ceSICMiss: receiver icTable: icTable [
 	| missedTargetReturnAddress missedTargetCogMethod selector numArgs sendHandler cacheTag0 newTargetMethodOrNil errorSelectorOrNil cacheTag1 cacheValue1 |
 	self assertValidICTable: icTable duringGC: false.
 	self assert: (objectMemory isNotForwarded: icTable).
-	sendHandler := objectMemory fetchPointer: ICHandlerIndex ofObject: icTable.
+	sendHandler := objectMemory fetchHandlerOfTable: icTable.
 
 	"Whether we can relink to a PIC or not we need to pop off the inner return and identify the target method."
 	missedTargetCogMethod := self
@@ -3999,11 +3995,7 @@ Cogit >> ceSICMiss: receiver icTable: icTable [
 	 -------------+---------------------------+---------------------------------------------------------
 	  foundMethod | SelectorDoesNotUnderstand | Didn't find the method but found the DNU implementation
 	  foundMethod | nil                       | Found the method"
-	cacheTag0 := objectMemory
-		             fetchPointer:
-		             ICCacheEntryStart + (ICCacheEntrySlotCount * 0)
-		             + ICCacheTagOffset
-		             ofObject: icTable.
+	cacheTag0 := objectMemory fetchCacheTag: 0 ofTable: icTable.
 
 	cacheTag1 := objectRepresentation inlineCacheTagForInstance: receiver.
 	cacheValue1 := errorSelectorOrNil = SelectorDoesNotUnderstand
@@ -4202,10 +4194,8 @@ Cogit >> checkIfValidOopRef: annotation pc: mcpc cogMethod: cogMethod [
 		self
 			offsetAndSendTableFor: annotation
 			into: [ :off :table | entryOffset := off ].
-		selector := objectRepresentation
-			            fetchPointer: ICSelectorIndex
-			            ofObject: icTable.
-		handler := objectRepresentation fetchPointer: ICHandlerIndex ofObject: icTable.
+		selector := objectMemory fetchSelectorOfTable: icTable.
+		handler := objectMemory fetchHandlerOfTable: icTable.
 
 		"Every send has a selector on its table"
 		(objectRepresentation checkValidOopReference: selector) ifFalse: [
@@ -4233,21 +4223,9 @@ Cogit >> checkIfValidOopRef: annotation pc: mcpc cogMethod: cogMethod [
 					cr.
 				^ 1 ].
 
-			cacheTag := objectRepresentation
-				            fetchPointer:
-				            ICCacheEntryStart + (ICCacheEntrySlotCount * 0)
-				            + ICCacheTagOffset
-				            ofObject: icTable.
-			cacheOperand := objectRepresentation
-				                fetchPointer:
-				                ICCacheEntryStart + (ICCacheEntrySlotCount * 0)
-				                + ICCacheOperandOffset
-				                ofObject: icTable.
-			cacheValue := objectRepresentation
-				              fetchPointer:
-				              ICCacheEntryStart + (ICCacheEntrySlotCount * 0)
-				              + ICCacheValueOffset
-				              ofObject: icTable.
+			cacheTag := objectRepresentation fetchCacheTag: 0 ofTable: icTable.
+			cacheOperand := objectRepresentation fetchCacheOperand: 0 ofTable: icTable.
+			cacheValue := objectRepresentation fetchCacheValue: 0 ofTable: icTable.
 			(self asserta: (objectRepresentation validInlineCacheTag: cacheTag))
 				ifFalse: [
 					coInterpreter
@@ -4279,21 +4257,9 @@ Cogit >> checkIfValidOopRef: annotation pc: mcpc cogMethod: cogMethod [
 		"This links a polymorphic stub"
 		"FIXME: assert valid stub"
 		1 to: ICCacheEntryCount - 1 do: [ :i |
-			cacheTag := objectRepresentation
-				            fetchPointer:
-				            ICCacheEntryStart + (ICCacheEntrySlotCount * i)
-				            + ICCacheTagOffset
-				            ofObject: icTable.
-			cacheOperand := objectRepresentation
-				                fetchPointer:
-				                ICCacheEntryStart + (ICCacheEntrySlotCount * i)
-				                + ICCacheOperandOffset
-				                ofObject: icTable.
-			cacheValue := objectRepresentation
-				              fetchPointer:
-				              ICCacheEntryStart + (ICCacheEntrySlotCount * i)
-				              + ICCacheValueOffset
-				              ofObject: icTable.
+			cacheTag := objectRepresentation fetchCacheTag: i ofTable: icTable.
+			cacheOperand := objectRepresentation fetchCacheOperand: i ofTable: icTable.
+			cacheValue := objectRepresentation fetchCacheValue: i ofTable: icTable.
 			cacheTag = objectRepresentation illegalClassTag
 				ifTrue: [
 					cacheOperand = objectMemory nilObject ifFalse: [
@@ -4350,70 +4316,72 @@ Cogit >> checkIfValidOopRefAndTarget: annotation pc: mcpc cogMethod: cogMethod [
 	<var: #mcpc type: #'char *'>
 	annotation = IsObjectReference ifTrue: [
 		| literal |
-		literal := literalsManager fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger using: backEnd.
-		(self asserta: (objectRepresentation checkValidOopReference: literal)) ifFalse: [
-			^ 1 ].
-		((objectRepresentation couldBeObject: literal) and: [ objectMemory isReallyYoungObject: literal ])
-			ifTrue: [
-				(self asserta: (self cCoerceSimple: cogMethod to: #'CogMethod *') cmRefersToYoung) ifFalse: [
-					^ 2 ] ] ].
+		literal := literalsManager
+			           fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger
+			           using: backEnd.
+		(self asserta: (objectRepresentation checkValidOopReference: literal))
+			ifFalse: [ ^ 1 ].
+		((objectRepresentation couldBeObject: literal) and: [
+			 objectMemory isReallyYoungObject: literal ]) ifTrue: [
+			(self asserta:
+				 (self cCoerceSimple: cogMethod to: #'CogMethod *') cmRefersToYoung)
+				ifFalse: [ ^ 2 ] ] ].
 
 	(self isSendAnnotation: annotation) ifTrue: [
 		| icTable selector handler entryOffset cacheTag cacheOperand cacheValue handlerType |
-		icTable := literalsManager fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger using: backEnd.
-		(self asserta: (objectRepresentation checkValidOopReference: icTable)) ifFalse: [
-			^ 3 ].
-		(self asserta: (objectRepresentation isImmediate: icTable)) ifFalse: [
-			^ 4 ].
-		(self asserta: (objectRepresentation isBytesNonImm: icTable)) ifFalse: [
-			^ 5 ].
+		icTable := literalsManager
+			           fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger
+			           using: backEnd.
+		(self asserta: (objectRepresentation checkValidOopReference: icTable))
+			ifFalse: [ ^ 3 ].
+		(self asserta: (objectRepresentation isImmediate: icTable)) ifFalse: [ ^ 4 ].
+		(self asserta: (objectRepresentation isBytesNonImm: icTable)) ifFalse: [ ^ 5 ].
 
-		self offsetAndSendTableFor: annotation into: [ :off :table | entryOffset := off ].
-		selector := objectRepresentation fetchPointer: ICSelectorIndex ofObject: icTable.
-		handler := objectRepresentation fetchPointer: ICHandlerIndex ofObject: icTable.
+		self
+			offsetAndSendTableFor: annotation
+			into: [ :off :table | entryOffset := off ].
+		selector := objectMemory fetchSelectorOfTable: icTable.
+		handler := objectMemory fetchHandlerOfTable: icTable.
 
 		"Every send has a selector on its table"
-		(self asserta: (objectRepresentation checkValidOopReference: selector)) ifFalse: [
-			^ 6 ].
+		(self asserta: (objectRepresentation checkValidOopReference: selector))
+			ifFalse: [ ^ 6 ].
 		"If the handler is not on the method zone then it is a trampoline for an unlinked send"
 		(methodZone isInMethodZone: handler) ifTrue: [ "
 			This is either monomorphic or a megamorphic send"
-			handlerType := (self cCoerceSimple: handler - entryOffset to: #'CogMethod *') cmType.
+			handlerType := (self cCoerceSimple: handler - entryOffset to: #'CogMethod *')
+				               cmType.
 			handlerType = CMMegamorphicIC ifTrue: [ "
 				Megamorphic sends don't have anything else to check"
 				^ 0 ].
 			handlerType = CMMethod ifFalse: [ ^ 8 ].
 
-			cacheTag := objectRepresentation fetchPointer: ICCacheEntryStart + (ICCacheEntrySlotCount * 0) + ICCacheTagOffset ofObject: icTable.
-			cacheOperand := objectRepresentation fetchPointer: ICCacheEntryStart + (ICCacheEntrySlotCount * 0) + ICCacheOperandOffset ofObject: icTable.
-			cacheValue := objectRepresentation fetchPointer: ICCacheEntryStart + (ICCacheEntrySlotCount * 0) + ICCacheValueOffset ofObject: icTable.
-			(self asserta: (objectRepresentation validInlineCacheTag: cacheTag)) ifFalse: [
-				^ 9 ].
+			cacheTag := objectRepresentation fetchCacheTag: 0 ofTable: icTable.
+			cacheOperand := objectRepresentation fetchCacheOperand: 0 ofTable: icTable.
+			cacheValue := objectRepresentation fetchCacheValue: 0 ofTable: icTable.
+			(self asserta: (objectRepresentation validInlineCacheTag: cacheTag))
+				ifFalse: [ ^ 9 ].
 			(self asserta: (objectMemory addressCouldBeOop: cacheOperand)) ifFalse: [
 				^ 10 ].
-			(self asserta: (methodZone isInMethodZone: cacheValue)) ifFalse: [
-				^ 11 ].
+			(self asserta: (methodZone isInMethodZone: cacheValue)) ifFalse: [ ^ 11 ].
 			^ 0 ].
 
 		"This links a polymorphic stub"
 		"FIXME: assert valid stub"
 		1 to: ICCacheEntryCount - 1 do: [ :i |
-			cacheTag := objectRepresentation fetchPointer: ICCacheEntryStart + (ICCacheEntrySlotCount * i) + ICCacheTagOffset ofObject: icTable.
-			cacheOperand := objectRepresentation fetchPointer: ICCacheEntryStart + (ICCacheEntrySlotCount * i) + ICCacheOperandOffset ofObject: icTable.
-			cacheValue := objectRepresentation fetchPointer: ICCacheEntryStart + (ICCacheEntrySlotCount * i) + ICCacheValueOffset ofObject: icTable.
+			cacheTag := objectRepresentation fetchCacheTag: i ofTable: icTable.
+			cacheOperand := objectRepresentation fetchCacheOperand: i ofTable: icTable.
+			cacheValue := objectRepresentation fetchCacheValue: i ofTable: icTable.
 			cacheTag = objectRepresentation illegalClassTag
 				ifTrue: [
-					cacheOperand = objectMemory nilObject ifFalse: [
-						^ 12 ].
-					cacheValue ifNotNil: [
-						^ 13 ] ]
+					cacheOperand = objectMemory nilObject ifFalse: [ ^ 12 ].
+					cacheValue ifNotNil: [ ^ 13 ] ]
 				ifFalse: [
-					(self asserta: (objectRepresentation validInlineCacheTag: cacheTag)) ifFalse: [
-						^ 14 ].
+					(self asserta: (objectRepresentation validInlineCacheTag: cacheTag))
+						ifFalse: [ ^ 14 ].
 					(self asserta: (objectMemory addressCouldBeOop: cacheOperand)) ifFalse: [
 						^ 15 ].
-					(self asserta: (methodZone isInMethodZone: cacheValue)) ifFalse: [
-						^ 16 ] ] ] ].
+					(self asserta: (methodZone isInMethodZone: cacheValue)) ifFalse: [ ^ 16 ] ] ] ].
 	^ 0 "keep scanning"
 ]
 
@@ -5258,8 +5226,7 @@ Cogit >> compileEntry [
 		         into: TempReg
 		         forEntry: true.
 	objectRepresentation
-		genLoadSlot:
-		ICCacheEntryStart + (ICCacheEntrySlotCount * 0) + ICCacheTagOffset
+		genLoadSlot: objectMemory cacheTagSlotForMonomorphicallyLinkedSend
 		sourceReg: ClassReg
 		destReg: Extra0Reg.
 	self CmpR: Extra0Reg R: TempReg.
@@ -5502,31 +5469,19 @@ Cogit >> computeMaximumSizes [
 { #category : 'in-line cacheing' }
 Cogit >> configurePolymorphicSendCase: icTable entryIndex: entryIndex cacheTag: cacheTag operand: aMethodOop value: handler [
 
-
 	<flag: #workingSet>
 	<api>
 	self assert: (self isPolymorphicICTable: icTable).
 	self assert: (entryIndex between: 0 and: ICCacheEntryCount - 1).
 	self assert: (objectMemory isValidClassTag: cacheTag).
-	self assert: ((objectMemory isCompiledMethod: aMethodOop) or: [ aMethodOop = objectMemory nilObject ]).
-	self assert: ((methodZone methodFor: handler) ~= 0 or: [ (methodZone codeEntryFor: handler) isNotNil ]).
+	self assert: ((objectMemory isCompiledMethod: aMethodOop) or: [
+			 aMethodOop = objectMemory nilObject ]).
+	self assert: ((methodZone methodFor: handler) ~= 0 or: [
+			 (methodZone codeEntryFor: handler) isNotNil ]).
 
-	objectMemory
-		storePointer:
-		ICCacheEntryStart + (ICCacheEntrySlotCount * entryIndex) + ICCacheTagOffset
-		ofObject: icTable
-		withValue: cacheTag.
-	objectMemory
-		storePointer:
-		ICCacheEntryStart + (ICCacheEntrySlotCount * entryIndex)
-		+ ICCacheOperandOffset
-		ofObject: icTable
-		withValue: aMethodOop.
-	objectMemory
-		storePointer:
-		ICCacheEntryStart + (ICCacheEntrySlotCount * entryIndex) + ICCacheValueOffset
-		ofObject: icTable
-		withValue: handler
+	objectMemory storeCacheTag: entryIndex ofTable: icTable with: cacheTag.
+	objectMemory storeCacheOperand: entryIndex ofTable: icTable with: aMethodOop.
+	objectMemory storeCacheValue: entryIndex ofTable: icTable with: handler
 ]
 
 { #category : 'printing' }
@@ -6107,7 +6062,7 @@ Cogit >> forEachSendTargetOf: icTable annotation: annotation do: aBlock [
 	<story: #pic>
 	<inline: #always>
 	| handler |
-	handler := objectMemory fetchPointer: ICHandlerIndex ofObject: icTable.
+	handler := objectMemory fetchHandlerOfTable: icTable.
 	(methodZone isInMethodZone: handler) ifTrue: [
 		| cogMethod unlinkedTrampoline cacheTag |
 		self
@@ -6118,16 +6073,9 @@ Cogit >> forEachSendTargetOf: icTable annotation: annotation do: aBlock [
 				unlinkedTrampoline := sendTable at:
 					                      (cogMethod cmNumArgs min: NumSendTrampolines - 1) ].
 
-		cacheTag := objectMemory
-			            fetchPointer:
-			            ICCacheEntryStart + (ICCacheEntrySlotCount * 0)
-			            + ICCacheTagOffset
-			            ofObject: icTable.
+		cacheTag := objectMemory fetchCacheTag: 0 ofTable: icTable.
 		cogMethod cmType = CMMethod ifTrue: [
-			aBlock
-				value: cacheTag
-				value: cogMethod methodObject
-				value: cogMethod ].
+			aBlock value: cacheTag value: cogMethod methodObject value: cogMethod ].
 		^ nil ].
 
 	(self isPolymorphicICTableHandler: handler) ifFalse: [ "
@@ -6136,15 +6084,10 @@ Cogit >> forEachSendTargetOf: icTable annotation: annotation do: aBlock [
 		^ nil ].
 
 	0 to: ICCacheEntryCount - 1 do: [ :i |
-		| tagIndex operandIndex valueIndex tag operand value |
-		tagIndex := ICCacheEntryStart + (ICCacheEntrySlotCount * i) + ICCacheTagOffset.
-		operandIndex := ICCacheEntryStart + (ICCacheEntrySlotCount * i)
-		                + ICCacheOperandOffset.
-		valueIndex := ICCacheEntryStart + (ICCacheEntrySlotCount * i)
-		              + ICCacheValueOffset.
-		tag := objectMemory fetchPointer: tagIndex ofObject: icTable.
-		operand := objectMemory fetchPointer: operandIndex ofObject: icTable.
-		value := objectMemory fetchPointer: valueIndex ofObject: icTable.
+		| tag operand value |
+		tag := objectMemory fetchCacheTag: i ofTable: icTable.
+		operand := objectMemory fetchCacheOperand: i ofTable: icTable.
+		value := objectMemory fetchCacheValue: i ofTable: icTable.
 		(methodZone isInMethodZone: value) ifTrue: [
 			value := value - cmNoCheckEntryOffset ].
 		tag ~= objectRepresentation illegalClassTag ifTrue: [
@@ -6156,15 +6099,10 @@ Cogit >> forEveryICTableEntryOf: icTable do: aBlock [
 
 	<inline: #always>
 	1 to: ICCacheEntryCount - 1 do: [ :i |
-		| tagIndex operandIndex valueIndex tag operand value |
-		tagIndex := ICCacheEntryStart + (ICCacheEntrySlotCount * i) + ICCacheTagOffset.
-		operandIndex := ICCacheEntryStart + (ICCacheEntrySlotCount * i)
-		                + ICCacheOperandOffset.
-		valueIndex := ICCacheEntryStart + (ICCacheEntrySlotCount * i)
-		              + ICCacheValueOffset.
-		tag := objectMemory fetchPointer: tagIndex ofObject: icTable.
-		operand := objectMemory fetchPointer: operandIndex ofObject: icTable.
-		value := objectMemory fetchPointer: valueIndex ofObject: icTable.
+		| tag operand value |
+		tag := objectMemory fetchCacheTag: i ofTable: icTable.
+		operand := objectMemory fetchCacheOperand: i ofTable: icTable.
+		value := objectMemory fetchCacheValue: i ofTable: icTable.
 		aBlock value: tag value: operand value: value ]
 ]
 
@@ -6769,22 +6707,17 @@ Cogit >> genPolymorphicSendTrampoline: numArgs [
 
 	0 to: ICCacheEntryCount - 1 do: [ :i |
 		objectRepresentation
-			genLoadSlot:
-			ICCacheEntryStart + (ICCacheEntrySlotCount * i) + ICCacheTagOffset
+			genLoadSlot: (objectMemory cacheTagSlotForICTableEntry: i)
 			sourceReg: ClassReg
 			destReg: Extra0Reg.
 		self CmpR: Extra0Reg R: TempReg.
 		jumpNext := self JumpNonZero: 0.
 		objectRepresentation
-			genLoadSlot:
-			ICCacheEntryStart + (ICCacheEntrySlotCount * i)
-			+ ICCacheOperandOffset
+			genLoadSlot: (objectMemory cacheOperandSlotForICTableEntry: i)
 			sourceReg: ClassReg
 			destReg: Extra0Reg.
 		objectRepresentation
-			genLoadSlot:
-			ICCacheEntryStart + (ICCacheEntrySlotCount * i)
-			+ ICCacheValueOffset
+			genLoadSlot: (objectMemory cacheValueSlotForICTableEntry: i)
 			sourceReg: ClassReg
 			destReg: TempReg.
 		self JumpR: TempReg.
@@ -8247,7 +8180,7 @@ Cogit >> isPCWithinMethodZone: address [
 Cogit >> isPolymorphicICTable: icTable [
 
 	| handler |
-	handler := objectMemory fetchPointer: ICHandlerIndex ofObject: icTable.
+	handler := objectMemory fetchHandlerOfTable: icTable.
 	^ self isPolymorphicICTableHandler: handler
 ]
 
@@ -8289,7 +8222,7 @@ Cogit >> isTrampolineArgConstant: n [
 Cogit >> isUnlinkedICTable: icTable annotation: annotation [
 
 	| handler |
-	handler := objectMemory fetchPointer: ICHandlerIndex ofObject: icTable.
+	handler := objectMemory fetchHandlerOfTable: icTable.
 	self offsetAndSendTableFor: annotation into: [ :offset :sendTable |
 		^ self sendTrampolineTable: sendTable includes: handler ]
 ]
@@ -8994,13 +8927,11 @@ Cogit >> markAndTraceObjectReferencesInGeneratedRuntime [
 Cogit >> markAndTraceOopsInPolymorphicICTable: icTable from: cogMethod [
 
 	0 to: ICCacheEntryCount - 1 do: [ :i |
-		| operandIndex operand |
-		operandIndex := ICCacheEntryStart + (ICCacheEntrySlotCount * i)
-		                + ICCacheOperandOffset.
-		operand := objectRepresentation fetchPointer: operandIndex ofObject: icTable.
+		| operand |
+		operand := objectRepresentation fetchCacheOperand: i ofTable: icTable.
 		(objectMemory isOopForwarded: operand) ifTrue: [
 			operand := objectMemory followForwarded: operand.
-			objectMemory storePointer: operandIndex ofObject: icTable withValue: operand.
+			objectMemory storeCacheOperand: i ofTable: icTable with: operand.
 
 			(objectMemory isYoung: operand) ifTrue: [
 				methodZone ensureInYoungReferrers: cogMethod ] ].
@@ -9065,16 +8996,13 @@ Cogit >> markLiterals: annotation pc: mcpc method: cogMethod [
 		self assertValidICTable: icTable duringGC: true.
 
 		"We have to manually mark the selector because the ICTable is opaque (just a byte array)"
-		selector := objectMemory fetchPointer: ICSelectorIndex ofObject: icTable.
+		selector := objectMemory fetchSelectorOfTable: icTable.
 		(objectMemory isOopForwarded: selector) ifTrue: [
 			selector := objectMemory followForwarded: selector.
-			objectRepresentation
-				storePointer: ICSelectorIndex
-				ofObject: icTable
-				withValue: selector.
+			objectMemory storeSelectorOfTable: icTable with: selector.
 			(objectMemory isYoung: selector) ifTrue: [
 				methodZone ensureInYoungReferrers: cogMethod ] ].
-		objectMemory markAndTraceLiteral: selector.
+		objectRepresentation markAndTraceLiteral: selector.
 
 		(self isPolymorphicICTable: icTable) ifTrue: [
 			self markAndTraceOopsInPolymorphicICTable: icTable from: cogMethod ] ].
@@ -9103,16 +9031,13 @@ Cogit >> markLiteralsAndUnlinkIfUnmarkedSend: annotation pc: mcpc method: cogMet
 		self assertValidICTable: icTable duringGC: true.
 
 		"We have to manually mark the selector because the ICTable is opaque (just a byte array)"
-		selector := objectMemory fetchPointer: ICSelectorIndex ofObject: icTable.
+		selector := objectMemory fetchSelectorOfTable: icTable.
 		(objectMemory isOopForwarded: selector) ifTrue: [
 			selector := objectMemory followForwarded: selector.
-			objectMemory
-				storePointer: ICSelectorIndex
-				ofObject: icTable
-				withValue: selector.
+			objectMemory storeSelectorOfTable: icTable with: selector.
 			(objectMemory isYoung: selector) ifTrue: [
 				methodZone ensureInYoungReferrers: cogMethod ] ].
-		objectMemory markAndTraceLiteral: selector.
+		objectRepresentation markAndTraceLiteral: selector.
 
 		self
 			unlinkSendTargetsOf: icTable
@@ -9177,18 +9102,14 @@ Cogit >> markYoungObjects: annotation pc: mcpc method: cogMethod [
 		objectRepresentation markAndTraceLiteralIfYoung: icTable.
 		self assertValidICTable: icTable duringGC: true.
 		"The ICTable is an opaque object. We should mark the selector by hand"
-		selector := objectRepresentation
-			            fetchPointer: ICSelectorIndex
-			            ofObject: icTable.
+		selector := objectMemory fetchSelectorOfTable: icTable.
 		"We have to manually mark the selector because the ICTable is opaque (just a byte array)"
 		objectMemory markAndTraceLiteralIfYoung: selector.
 
 		(self isPolymorphicICTable: icTable) ifTrue: [
 			0 to: ICCacheEntryCount - 1 do: [ :i |
-				| operandIndex operand |
-				operandIndex := ICCacheEntryStart + (ICCacheEntrySlotCount * i)
-				                + ICCacheOperandOffset.
-				operand := objectRepresentation fetchPointer: operandIndex ofObject: icTable.
+				| operand |
+				operand := objectMemory fetchCacheOperand: i ofTable: icTable.
 				objectMemory markAndTraceLiteralIfYoung: operand ] ] ].
 
 	^ 0 "keep scanning"
@@ -10449,13 +10370,9 @@ Cogit >> relocateIfCallOrMethodReference: annotation mcpc: mcpc delta: refDelta 
 		(self isUnlinkedICTable: icTable annotation: annotation) ifTrue: [ ^ 0 ].
 		(self isPolymorphicICTable: icTable) ifTrue: [
 			0 to: ICCacheEntryCount - 1 do: [ :i |
-				| cacheTagIndex cacheValueIndex cacheTag cacheValue cacheCogMethod |
-				cacheTagIndex := ICCacheEntryStart + (ICCacheEntrySlotCount * i)
-				                 + ICCacheTagOffset.
-				cacheValueIndex := ICCacheEntryStart + (ICCacheEntrySlotCount * i)
-				                   + ICCacheValueOffset.
-				cacheTag := objectMemory fetchPointer: cacheTagIndex ofObject: icTable.
-				cacheValue := objectMemory fetchPointer: cacheValueIndex ofObject: icTable.
+				| cacheTag cacheValue cacheCogMethod |
+				cacheTag := objectMemory fetchCacheTag: i ofTable: icTable.
+				cacheValue := objectMemory fetchCacheValue: i ofTable: icTable.
 				(cacheTag ~= objectMemory illegalClassTag and: [
 					 methodZone isInMethodZone: cacheValue ]) ifTrue: [ "We only relocate present entries that don't point to trampolines!"
 					cacheCogMethod := self
@@ -10469,12 +10386,12 @@ Cogit >> relocateIfCallOrMethodReference: annotation mcpc: mcpc delta: refDelta 
 							newCacheValue := cacheValue + cacheCogMethod objectHeader.
 
 							objectRepresentation
-								storePointer: cacheValueIndex
-								ofObject: icTable
-								withValue: newCacheValue ] ] ].
+								storeCacheValue: i
+								ofTable: icTable
+								with: newCacheValue ] ] ].
 			^ 0 ].
 
-		handler := objectRepresentation fetchPointer: ICHandlerIndex ofObject: icTable.
+		handler := objectRepresentation fetchHandlerOfTable: icTable.
 		self assert: (methodZone isInMethodZone: handler).
 
 		"It's either a monomorphic or a megamorphic send"
@@ -10490,10 +10407,7 @@ Cogit >> relocateIfCallOrMethodReference: annotation mcpc: mcpc delta: refDelta 
 				| newHandler |
 				"Relocate handler"
 				newHandler := handler + handlerMethod objectHeader.
-				objectRepresentation
-					storePointer: ICHandlerIndex
-					ofObject: icTable
-					withValue: newHandler ].
+				objectRepresentation storeHandlerOfTable: icTable with: newHandler ].
 		^ 0 ].
 
 	annotation = IsRelativeCall ifTrue: [
@@ -10514,65 +10428,46 @@ Cogit >> remapIfObjectRef: annotation pc: mcpc hasYoung: hasYoungPtr [
 	<var: #mcpc type: #'char *'>
 	annotation = IsObjectReference ifTrue: [
 		| literal mappedLiteral |
-		literal := self fetchLiteralAtAnnotatedAddress:
-			           mcpc asUnsignedInteger.
+		literal := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
 		(objectRepresentation couldBeObject: literal) ifTrue: [
 			mappedLiteral := objectRepresentation remapObject: literal.
 			literal ~= mappedLiteral ifTrue: [
-				self
-					storeLiteral: mappedLiteral
-					atAnnotatedAddress: mcpc asUnsignedInteger.
+				self storeLiteral: mappedLiteral atAnnotatedAddress: mcpc asUnsignedInteger.
 				codeModified := true ].
-			(hasYoungPtr ~= 0 and: [ objectMemory isYoung: mappedLiteral ])
-				ifTrue: [
+			(hasYoungPtr ~= 0 and: [ objectMemory isYoung: mappedLiteral ]) ifTrue: [
 				(self cCoerceSimple: hasYoungPtr to: #'sqInt *') at: 0 put: true ] ] ].
 
 	(self isSendAnnotation: annotation) ifTrue: [
 		| icTable mappedIcTable selector mappedSelector |
-		icTable := self fetchLiteralAtAnnotatedAddress:
-			           mcpc asUnsignedInteger.
+		icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
 		mappedIcTable := objectRepresentation remapObject: icTable.
 		icTable ~= mappedIcTable ifTrue: [
-			self
-				storeLiteral: mappedIcTable
-				atAnnotatedAddress: mcpc asUnsignedInteger.
+			self storeLiteral: mappedIcTable atAnnotatedAddress: mcpc asUnsignedInteger.
 			codeModified := true ].
-		(hasYoungPtr ~= 0 and: [ objectMemory isYoung: mappedIcTable ])
-			ifTrue: [
+		(hasYoungPtr ~= 0 and: [ objectMemory isYoung: mappedIcTable ]) ifTrue: [
 			(self cCoerceSimple: hasYoungPtr to: #'sqInt *') at: 0 put: true ].
 		objectMemory scavengeInProgress ifTrue: [ "
 			During a scavenge the data is moved to the mapped object.
 			Otherwise the data is still on the original place"
 			icTable := mappedIcTable ].
 
-		selector := objectRepresentation
-			            fetchPointer: ICSelectorIndex
-			            ofObject: icTable.
+		selector := objectRepresentation fetchSelectorOfTable: icTable.
 		mappedSelector := objectMemory remapObject: selector.
 		selector ~= mappedSelector ifTrue: [
-			objectRepresentation
-				storePointer: ICSelectorIndex
-				ofObject: icTable
-				withValue: mappedSelector ].
-		(hasYoungPtr ~= 0 and: [ objectMemory isYoung: mappedSelector ])
-			ifTrue: [
+			objectRepresentation storeSelectorOfTable: icTable with: mappedSelector ].
+		(hasYoungPtr ~= 0 and: [ objectMemory isYoung: mappedSelector ]) ifTrue: [
 			(self cCoerceSimple: hasYoungPtr to: #'sqInt *') at: 0 put: true ].
 
 		0 to: ICCacheEntryCount - 1 do: [ :i |
-			| operandIndex operand mappedOperand |
-			operandIndex := ICCacheEntryStart + (ICCacheEntrySlotCount * i)
-			                + ICCacheOperandOffset.
-			operand := objectMemory
-				           fetchPointer: operandIndex
-				           ofObject: icTable.
+			| operand mappedOperand |
+			operand := objectMemory fetchCacheOperand: i ofTable: icTable.
 			mappedOperand := objectRepresentation remapObject: operand.
 			operand ~= mappedOperand ifTrue: [
 				objectRepresentation
-					storePointer: operandIndex
-					ofObject: icTable
-					withValue: mappedOperand ].
-			(hasYoungPtr ~= 0 and: [ objectMemory isYoung: mappedOperand ])
-				ifTrue: [
+					storeCacheOperand: i
+					ofTable: icTable
+					with: mappedOperand ].
+			(hasYoungPtr ~= 0 and: [ objectMemory isYoung: mappedOperand ]) ifTrue: [
 				(self cCoerceSimple: hasYoungPtr to: #'sqInt *') at: 0 put: true ] ] ].
 
 	^ 0 "keep scanning"
@@ -11236,10 +11131,9 @@ Cogit >> transitionToMegamorphicSend: icTable usingStub: megamorphicStub [
 	"self assert: ((self isMonomorphicICTable: icTable) or: [ self isMegamorphicICTable: icTable ])"
 
 	objectMemory
-		storePointer: ICHandlerIndex
-		ofObject: icTable
-		withValue: megamorphicStub asUnsignedInteger + cmEntryOffset.
-	objectMemory clearAllICTableEntries: icTable.
+		storeHandlerOfTable: icTable
+		with: megamorphicStub asUnsignedInteger + cmEntryOffset.
+	objectMemory clearAllICTableEntries: icTable
 ]
 
 { #category : 'in-line cacheing' }
@@ -11252,13 +11146,9 @@ Cogit >> transitionToMonomorphicSend: icTable cacheTag: classTag cogMethod: cogM
 		               ifTrue: [ cmEntryOffset ]
 		               ifFalse: [ cmNoCheckEntryOffset ].
 	handler := cogMethod asUnsignedInteger + entryOffset.
-	objectMemory storePointer: ICHandlerIndex ofObject: icTable withValue: handler.
+	objectMemory storeHandlerOfTable: icTable with: handler.
 	objectMemory clearAllICTableEntries: icTable.
-	objectMemory
-		storePointer:
-		ICCacheEntryStart + (ICCacheEntrySlotCount * 0) + ICCacheTagOffset
-		ofObject: icTable
-		withValue: classTag
+	objectMemory storeCacheTag: 0 ofTable: icTable with: classTag
 ]
 
 { #category : 'in-line cacheing' }
@@ -11268,9 +11158,8 @@ Cogit >> transitionToPolymorphicSend: icTable numArgs: numArgs [
 	<api>
 	"self assert: ((self isMonomorphicICTable: icTable) or: [ self isPolymorphicSend: icTable ])"
 	objectMemory
-		storePointer: ICHandlerIndex 
-		ofObject: icTable
-		withValue: (self polymorphicSendFor: numArgs).
+		storeHandlerOfTable: icTable
+		with: (self polymorphicSendFor: numArgs).
 	objectMemory clearAllICTableEntries: icTable
 ]
 
@@ -11281,9 +11170,8 @@ Cogit >> transitionToUnlinkedSend: icTable unlinkedTable: sendTable numArgs: num
 	<api>
 	<var: #sendTable type: #'sqInt *'>
 	objectMemory
-		storePointer: ICHandlerIndex
-		ofObject: icTable
-		withValue: (sendTable at: (numArgs min: NumSendTrampolines - 1)).
+		storeHandlerOfTable: icTable
+		with: (sendTable at: (numArgs min: NumSendTrampolines - 1)).
 	objectMemory clearAllICTableEntries: icTable
 ]
 
@@ -11302,7 +11190,7 @@ Cogit >> unlinkIfFreeOrLinkedSend: annotation pc: mcpc of: theSelector [
 	(self isSendAnnotation: annotation) ifFalse: [ ^ 0 "keep scanning" ].
 	icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
 	self assertValidICTable: icTable duringGC: true.
-	selector := objectMemory fetchPointer: ICSelectorIndex ofObject: icTable.
+	selector := objectMemory fetchSelectorOfTable: icTable.
 
 	self
 		unlinkSendTargetsOf: icTable
@@ -11326,7 +11214,7 @@ Cogit >> unlinkIfInvalidClassSend: annotation pc: mcpc ignored: superfluity [
 	(self isSendAnnotation: annotation) ifFalse: [ ^ 0 "keep scanning" ].
 	icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
 	self assertValidICTable: icTable duringGC: true.
-	handler := objectRepresentation fetchPointer: ICHandlerIndex ofObject: icTable.
+	handler := objectRepresentation fetchHandlerOfTable: icTable.
 
 	self
 		unlinkSendTargetsOf: icTable
@@ -11364,7 +11252,7 @@ Cogit >> unlinkIfLinkedSendToFree: annotation pc: mcpc ignored: superfluity [
 	(self isSendAnnotation: annotation) ifFalse: [ ^ 0 "keep scanning" ].
 	icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
 	self assertValidICTable: icTable duringGC: true.
-	handler := objectRepresentation fetchPointer: ICHandlerIndex ofObject: icTable.
+	handler := objectRepresentation fetchHandlerOfTable: icTable.
 
 	self
 		unlinkSendTargetsOf: icTable
@@ -11384,7 +11272,7 @@ Cogit >> unlinkSendTargetsOf: icTable annotation: annotation if: shouldUnlinkBLo
 	<story: #pic>
 	<inline: #always>
 	| handler |
-	handler := objectMemory fetchPointer: ICHandlerIndex ofObject: icTable.
+	handler := objectMemory fetchHandlerOfTable: icTable.
 	(methodZone isInMethodZone: handler) ifTrue: [
 		| cogMethod unlinkedTrampoline cacheTag shouldUnlink |
 		self
@@ -11395,11 +11283,7 @@ Cogit >> unlinkSendTargetsOf: icTable annotation: annotation if: shouldUnlinkBLo
 				unlinkedTrampoline := sendTable at:
 					                      (cogMethod cmNumArgs min: NumSendTrampolines - 1) ].
 
-		cacheTag := objectMemory
-			            fetchPointer:
-			            ICCacheEntryStart + (ICCacheEntrySlotCount * 0)
-			            + ICCacheTagOffset
-			            ofObject: icTable.
+		cacheTag := objectMemory fetchCacheTag: 0 ofTable: icTable.
 		shouldUnlink := false.
 		cogMethod cmType = CMMethod ifTrue: [
 			shouldUnlink := shouldUnlinkBLock
@@ -11407,10 +11291,7 @@ Cogit >> unlinkSendTargetsOf: icTable annotation: annotation if: shouldUnlinkBLo
 				                value: cogMethod methodObject
 				                value: cogMethod ].
 		shouldUnlink ifTrue: [
-			objectMemory
-				storePointer: ICHandlerIndex
-				ofObject: icTable
-				withValue: unlinkedTrampoline.
+			objectMemory storeHandlerOfTable: icTable with: unlinkedTrampoline.
 			objectMemory clearAllICTableEntries: icTable ].
 		^ nil ].
 
@@ -11420,15 +11301,10 @@ Cogit >> unlinkSendTargetsOf: icTable annotation: annotation if: shouldUnlinkBLo
 		^ nil ].
 
 	0 to: ICCacheEntryCount - 1 do: [ :i |
-		| tagIndex operandIndex valueIndex tag operand value |
-		tagIndex := ICCacheEntryStart + (ICCacheEntrySlotCount * i) + ICCacheTagOffset.
-		operandIndex := ICCacheEntryStart + (ICCacheEntrySlotCount * i)
-		                + ICCacheOperandOffset.
-		valueIndex := ICCacheEntryStart + (ICCacheEntrySlotCount * i)
-		              + ICCacheValueOffset.
-		tag := objectMemory fetchPointer: tagIndex ofObject: icTable.
-		operand := objectMemory fetchPointer: operandIndex ofObject: icTable.
-		value := objectMemory fetchPointer: valueIndex ofObject: icTable.
+		| tag operand value |
+		tag := objectMemory fetchCacheTag: i ofTable: icTable.
+		operand := objectMemory fetchCacheOperand: i ofTable: icTable.
+		value := objectMemory fetchCacheValue: i ofTable: icTable.
 		(methodZone isInMethodZone: value) ifTrue: [
 			value := value - cmNoCheckEntryOffset ].
 		tag ~= objectRepresentation illegalClassTag ifTrue: [

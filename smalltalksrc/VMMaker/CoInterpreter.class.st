@@ -1388,13 +1388,13 @@ CoInterpreter >> ceNonLocalReturn: returnValue [
 CoInterpreter >> cePolymorphicSendInterpret: icTable method: aMethodObj receiver: rcvr numArgs: numArgs [
 
 	<flag: #workingSet>
+	<flag: #FIXME>
 	<api>
 	| primitiveIndex |
 	self assert: (objectMemory isNotForwarded: icTable).
 	self assert: (objectMemory isNotForwarded: aMethodObj).
 	self assert: (objectMemory isNotForwarded: rcvr).
-	"NOTE: the assertion below is wrong #run:with:in:"
-	self assert: (objectMemory isCompiledMethod: aMethodObj).
+	"NOTE: Fix for #run:with:in:!!"
 
 	(self methodHasCogMethod: aMethodObj) ifTrue: [
 		| cogMethod |
@@ -1402,22 +1402,17 @@ CoInterpreter >> cePolymorphicSendInterpret: icTable method: aMethodObj receiver
 		cogMethod := self cogMethodOf: aMethodObj.
 		0 to: ICCacheEntryCount - 1 do: [ :i |
 			| operand |
-			operand := objectMemory
-				           fetchPointer:
-				           ICCacheEntryStart + (ICCacheEntrySlotCount * i)
-				           + ICCacheOperandOffset
-				           ofObject: icTable.
+			operand := objectMemory fetchCacheOperand: i ofTable: icTable.
 			operand = aMethodObj ifTrue: [
 				objectMemory
-					storePointer:
-					ICCacheEntryStart + (ICCacheEntrySlotCount * i) + ICCacheValueOffset
-					ofObject: icTable
-					withValue: cogMethod asUnsignedInteger + cogit noCheckEntryOffset ] ].
+					storeCacheValue: i
+					ofTable: icTable
+					with: cogMethod asUnsignedInteger + cogit noCheckEntryOffset ] ].
 		self executeCogMethod: cogMethod fromUnlinkedSendWithReceiver: rcvr.
 		self unreachable ].
 
 	"Method was not cogged, jump to the interpreter instead :("
-	messageSelector := objectMemory fetchPointer: ICSelectorIndex ofObject: icTable.
+	messageSelector := objectMemory fetchSelectorOfTable: icTable.
 	newMethod := aMethodObj.
 	primitiveIndex := self primitiveIndexOf: aMethodObj.
 	primitiveFunctionPointer := self
@@ -1438,9 +1433,7 @@ CoInterpreter >> cePolymorphicSendMNU: icTable method: aMethodObj receiver: rcvr
 	self assert: ((objectMemory addressCouldBeObj: aMethodObj) and: [
 			 objectMemory isOopCompiledMethod: aMethodObj ]).
 	argumentCount := numArgs.
-	messageSelector := objectMemory
-		                   fetchPointer: ICSelectorIndex
-		                   ofObject: icTable.
+	messageSelector := objectMemory fetchSelectorOfTable: icTable.
 
 	instructionPointer := self popStack.
 	self createActualMessageTo: (objectMemory fetchClassOf: rcvr).
@@ -3056,7 +3049,7 @@ CoInterpreter >> handleUnlinkedSendFor: icTable to: receiver isSuper: isSuper cl
 	argumentCount := numArgs.
 
 	self assert: (objectMemory isNotForwarded: icTable).
-	selector := objectMemory fetchPointer: ICSelectorIndex ofObject: icTable.
+	selector := objectMemory fetchSelectorOfTable: icTable.
 	self assert: (objectMemory isNotForwarded: selector).
 
 	found := self lookupInMethodCacheSel: selector classTag: classTag.
