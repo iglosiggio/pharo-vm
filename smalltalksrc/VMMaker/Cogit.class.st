@@ -135,7 +135,6 @@ Class {
 		'traceFlags',
 		'traceStores',
 		'methodObj',
-		'enumeratingCogMethod',
 		'methodHeader',
 		'initialPC',
 		'endPC',
@@ -153,8 +152,6 @@ Class {
 		'sendMiss',
 		'missOffset',
 		'entryPointMask',
-		'checkedEntryAlignment',
-		'uncheckedEntryAlignment',
 		'cmEntryOffset',
 		'entry',
 		'cmNoCheckEntryOffset',
@@ -165,11 +162,6 @@ Class {
 		'cbNoSwitchEntryOffset',
 		'picMNUAbort',
 		'picInterpretAbort',
-		'endCPICCase0',
-		'endCPICCase1',
-		'firstCPICCaseOffset',
-		'cPICCaseSize',
-		'cPICEndSize',
 		'closedPICSize',
 		'openPICSize',
 		'fixups',
@@ -191,7 +183,6 @@ Class {
 		'ceMethodAbortTrampoline',
 		'cePICAbortTrampoline',
 		'ceCheckForInterruptTrampoline',
-		'ceCPICMissTrampoline',
 		'ceReturnToInterpreterTrampoline',
 		'ceBaseFrameReturnTrampoline',
 		'ceReapAndResetErrorCodeTrampoline',
@@ -240,9 +231,6 @@ Class {
 		'cogMethodSurrogateClass',
 		'CStackPointer',
 		'CFramePointer',
-		'cPICPrototype',
-		'cPICEndOfCodeOffset',
-		'cPICEndOfCodeLabel',
 		'ceMallocTrampoline',
 		'ceFreeTrampoline',
 		'debugBytecodePointers',
@@ -255,7 +243,10 @@ Class {
 		'statCompileFullBlockUsecs',
 		'statCompileMethodCount',
 		'statCompileMethodUsecs',
-		'jitCodeZoneWriteEnabled'
+		'jitCodeZoneWriteEnabled',
+		'polymorphicSendTrampolines',
+		'polymorphicSendMNUTrampolines',
+		'polymorphicSendInterpretTrampolines'
 	],
 	#classVars : [
 		'AnnotationConstantNames',
@@ -278,7 +269,6 @@ Class {
 		'IsSendCall',
 		'IsSuperSend',
 		'MapEnd',
-		'MaxCPICCases',
 		'MaxCompiledPrimitiveIndex',
 		'MaxNumberOfAbstractOpcodes',
 		'MaxX2NDisplacement',
@@ -292,6 +282,7 @@ Class {
 		'CogCompilationConstants',
 		'CogMethodConstants',
 		'CogRTLOpcodes',
+		'ICTableConstants',
 		'VMBasicConstants',
 		'VMBytecodeConstants',
 		'VMObjectIndices',
@@ -5068,7 +5059,6 @@ Cogit >> compileCallFor: aRoutine numArgs: numArgs arg: regOrConst0 arg: regOrCo
 Cogit >> compileCogFullBlockMethod: numCopied [
 	<returnTypeC: #'CogMethod *'>
 	<option: #SistaV1BytecodeSet>
-	<flag: #seeGuille>
 	| numBytecodes successScan result |
 	hasYoungReferent := (objectMemory getMemoryMap isYoungObject: methodObj).
 	methodOrBlockNumArgs := coInterpreter argumentCountOf: methodObj.
@@ -5815,7 +5805,6 @@ Cogit >> fillInMethodHeader: method size: size selector: selector [
 	self assert: (backEnd callTargetFromReturnAddress: method asInteger + missOffset)
 				= (self methodAbortTrampolineFor: method cmNumArgs).
 	self assert: size = (methodZone roundUpLength: size).
-	self maybeEnableSingleStep.
 	^method
 ]
 
@@ -5843,7 +5832,6 @@ Cogit >> fillInOPICHeader: pic numArgs: numArgs selector: selector [
 	self assert: pic cmNumArgs = numArgs.
 	self assert: (backEnd callTargetFromReturnAddress: pic asInteger + missOffset) = (self picAbortTrampolineFor: numArgs).
 	self assert: openPICSize = (methodZone roundUpLength: openPICSize).
-	self maybeEnableSingleStep.
 	^pic
 ]
 
@@ -10514,15 +10502,18 @@ Cogit >> setInterpreter: aCoInterpreter [
 	"Initialization of the code generator in the simulator.
 	 These objects already exist in the generated C VM
 	 or are used only in the simulation."
+
 	<doNotGenerate>
 	coInterpreter := aCoInterpreter.
 	objectMemory := aCoInterpreter objectMemory.
 	methodZone := self class methodZoneClass new.
 	objectRepresentation := objectMemory objectRepresentationClass
-								forCogit: self methodZone: methodZone.
-	methodZone setInterpreter: aCoInterpreter
-				objectRepresentation: objectRepresentation
-				cogit: self.
+		                        forCogit: self
+		                        methodZone: methodZone.
+	methodZone
+		setInterpreter: aCoInterpreter
+		objectRepresentation: objectRepresentation
+		cogit: self.
 	generatorTable := self class generatorTable.
 	processor := ProcessorClass new.
 	simulatedAddresses := Dictionary new.
@@ -10530,36 +10521,53 @@ Cogit >> setInterpreter: aCoInterpreter [
 	simulatedVariableGetters := Dictionary new.
 	simulatedVariableSetters := Dictionary new.
 	traceStores := 0.
-	traceFlags := (self class initializationOptions at: #recordPrimTrace ifAbsent: [true])
-					ifTrue: [8] "record prim trace on by default (see Cogit class>>decareCVarsIn:)"
-					ifFalse: [0].
+	traceFlags := (self class initializationOptions
+		               at: #recordPrimTrace
+		               ifAbsent: [ true ])
+		              ifTrue: [ "record prim trace on by default (see Cogit class>>decareCVarsIn:)"
+			              8 ]
+		              ifFalse: [ 0 ].
 	debugPrimCallStackOffset := 0.
 	singleStep := printRegisters := printInstructions := clickConfirm := false.
 	backEnd := CogCompilerClass for: self.
 	methodLabel := CogCompilerClass for: self.
-	(literalsManager := backEnd class literalsManagerClass new) cogit: self.
-	ordinarySendTrampolines := CArrayAccessor on: (Array new: NumSendTrampolines).
-	superSendTrampolines := CArrayAccessor on: (Array new: NumSendTrampolines).
-	BytecodeSetHasDirectedSuperSend ifTrue:
-		[directedSuperSendTrampolines := CArrayAccessor on: (Array new: NumSendTrampolines).
-		 directedSuperBindingSendTrampolines := CArrayAccessor on: (Array new: NumSendTrampolines).
-		 directedSendUsesBinding := false].
+	(literalsManager := backEnd class literalsManagerClass new) cogit:
+		self.
+	ordinarySendTrampolines := CArrayAccessor on:
+		                           (Array new: NumSendTrampolines).
+	superSendTrampolines := CArrayAccessor on:
+		                        (Array new: NumSendTrampolines).
+	BytecodeSetHasDirectedSuperSend ifTrue: [
+		directedSuperSendTrampolines := CArrayAccessor on:
+			                                (Array new: NumSendTrampolines).
+		directedSuperBindingSendTrampolines := CArrayAccessor on:
+			                                       (Array new:
+				                                        NumSendTrampolines).
+		directedSendUsesBinding := false ].
 	polymorphicSendTrampolines := CArrayAccessor on: (Array new: NumSendTrampolines).
 	polymorphicSendMNUTrampolines := CArrayAccessor on: (Array new: NumSendTrampolines).
 	polymorphicSendInterpretTrampolines := CArrayAccessor on: (Array new: NumSendTrampolines).
 	"debug metadata"
-	objectReferencesInRuntime := CArrayAccessor on: (Array new: NumObjRefsInRuntime).
+	objectReferencesInRuntime := CArrayAccessor on:
+		                             (Array new: NumObjRefsInRuntime).
 	runtimeObjectRefIndex := 0.
 	"debug metadata"
-	trampolineAddresses := CArrayAccessor on: (Array new: NumTrampolines * 2).
+	trampolineAddresses := CArrayAccessor on:
+		                       (Array new: NumTrampolines * 2).
 	trampolineTableIndex := 0.
 
 	extA := numExtB := extB := 0.
 
-	compilationTrace ifNil: [compilationTrace := self class initializationOptions at: #compilationTrace ifAbsent: [0]].
-	debugOpcodeIndices := self class initializationOptions at: #debugOpcodeIndices ifAbsent: [Set new].
-	debugBytecodePointers := self class initializationOptions at: #debugBytecodePointers ifAbsent: [Set new].
-	self class initializationOptions at: #breakPC ifPresent: [:pc| breakPC := pc]
+	compilationTrace ifNil: [
+		compilationTrace := self class initializationOptions
+			                    at: #compilationTrace
+			                    ifAbsent: [ 0 ] ].
+	debugOpcodeIndices := self class initializationOptions
+		                      at: #debugOpcodeIndices
+		                      ifAbsent: [ Set new ].
+	debugBytecodePointers := self class initializationOptions
+		                         at: #debugBytecodePointers
+		                         ifAbsent: [ Set new ]
 ]
 
 { #category : 'jit - api' }
