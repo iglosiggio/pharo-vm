@@ -121,7 +121,6 @@ void* allocateJITMemory(usqInt desiredSize, usqInt desiredPosition){
 usqInt
 sqAllocateMemory(usqInt minHeapSize, usqInt desiredHeapSize, usqInt desiredBaseAddress) {
     char *heap    =  0;
-    sqInt   heapSize    =  0;
     sqInt   heapLimit    =  0;
 
 #if __APPLE__
@@ -133,19 +132,11 @@ sqAllocateMemory(usqInt minHeapSize, usqInt desiredHeapSize, usqInt desiredBaseA
 	pageSize = getpagesize();
 	pageMask = ~(pageSize - 1);
 
-	logDebug("Requested Size %"PRIdSQINT, desiredHeapSize);
-
+	usqInt desiredBaseAddressAligned = valign(desiredBaseAddress);
 	heapLimit = valign(max(desiredHeapSize, 1));
 	if(heapLimit < desiredHeapSize){
 		heapLimit += pageSize;
 	}
-	
-	usqInt desiredBaseAddressAligned = valign(desiredBaseAddress);
-
-	logDebug("Aligned Requested Size %"PRIdSQINT, heapLimit);
-
-	logDebug("Trying to load the image in %p\n",
-			(void* )desiredBaseAddressAligned);
 
 	while ((!heap) && (heapLimit >= minHeapSize)) {
 		if (MAP_FAILED == (heap = mmap((void*) desiredBaseAddressAligned, heapLimit, MAP_PROT, MAP_FLAGS | additionalFlags, devZero, 0))) {
@@ -179,12 +170,7 @@ sqAllocateMemory(usqInt minHeapSize, usqInt desiredHeapSize, usqInt desiredBaseA
 #endif
 	}
 
-	heapSize = heapLimit;
-
-	if(heap){
-		logDebug("Loading the image in %p\n", (void* )heap);
-	}
-
+	logDebug("Requested memory size: %zu at: %p, aligned size: %zu at: %p, obtained at: %p" , desiredHeapSize, desiredBaseAddress, heapLimit, desiredBaseAddressAligned, heap);
 	return (usqInt) heap;
 }
 

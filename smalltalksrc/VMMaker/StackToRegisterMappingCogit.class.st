@@ -934,8 +934,7 @@ StackToRegisterMappingCogit >> compileAbstractInstructionsFrom: start through: e
 	nExts := result := 0.
 	descriptor := nil.
 	deadCode := false.
-	[self maybeHaltIfDebugPC.
-	 self mergeWithFixupIfRequired: (fixup := self fixupAt: bytecodePC).
+	[self mergeWithFixupIfRequired: (fixup := self fixupAt: bytecodePC).
 	 descriptor := self loadBytesAndGetDescriptor.
 	 nextOpcodeIndex := opcodeIndex.
 	 result := deadCode
@@ -1323,9 +1322,7 @@ StackToRegisterMappingCogit >> fixupAtIndex: index [
 	 fixupAt: does the conversion.  Override to add breakpointing for fixups of bytecode PCs."
 	<cmacro: '(index) (&fixups[index])'>
 	<returnTypeC: #'BytecodeFixup *'>
-	((debugFixupBreaks includes: index + initialPC)
-	 and: [breakMethod isNil or: [methodObj = breakMethod]]) ifTrue:
-		[self halt].
+
 	^self addressOf: (fixups at: index)
 ]
 
@@ -3132,7 +3129,6 @@ StackToRegisterMappingCogit >> generateInstructionsAt: eventualAbsoluteAddress [
 	pcDependentIndex := 0.
 	0 to: opcodeIndex - 1 do:
 		[:i|
-		self maybeBreakGeneratingAt: absoluteAddress.
 		abstractInstruction := self abstractInstructionAt: i.
 		abstractInstruction isPCDependent
 			ifTrue:
@@ -3158,7 +3154,6 @@ StackToRegisterMappingCogit >> generateInstructionsAt: eventualAbsoluteAddress [
 		[:j|
 		fixup := self fixupAtIndex: j.
 		abstractInstruction := self abstractInstructionAt: fixup instructionIndex.
-		self maybeBreakGeneratingAt: abstractInstruction address.
 		abstractInstruction concretizeAt: abstractInstruction address].
 	^absoluteAddress - eventualAbsoluteAddress
 ]
