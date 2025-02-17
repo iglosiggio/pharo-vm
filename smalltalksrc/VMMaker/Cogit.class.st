@@ -5843,19 +5843,6 @@ Cogit >> fillInOPICHeader: pic numArgs: numArgs selector: selector [
 ]
 
 { #category : 'method map' }
-Cogit >> find: descriptor IsBackwardBranch: isBackwardBranchAndAnnotation Mcpc: mcpc Bcpc: bcpc MatchingBcpc: targetBcpc [
-	<var: #descriptor type: #'BytecodeDescriptor *'>
-	<var: #mcpc type: #'char *'>
-	<var: #targetBcpc type: #'void *'>
-	<inline: true>
-	^targetBcpc asInteger = ((descriptor isNil or: [isBackwardBranchAndAnnotation anyMask: 1])
-									ifTrue: [bcpc]
-									ifFalse: [bcpc + descriptor numBytes])
-		ifTrue: [mcpc asInteger]
-		ifFalse: [0]
-]
-
-{ #category : 'method map' }
 Cogit >> find: descriptor IsBackwardBranch: isBackwardBranchAndAnnotation Mcpc: mcpc Bcpc: bcpc MatchingMcpc: targetMcpc [
 	<var: #descriptor type: #'BytecodeDescriptor *'>
 	<var: #mcpc type: #'char *'>
@@ -9179,26 +9166,11 @@ Cogit >> maybeUnsafeJumpContinuation: latestContinuation at: bcpc for: descripto
 ]
 
 { #category : 'method map' }
-Cogit >> mcPCFor: bcpc startBcpc: startbcpc in: cogMethod [
-	"Answer the absolute machine code pc matching the zero-relative bytecode pc argument
-	 in cogMethod, given the start of the bytecodes for cogMethod's block or method object."
-	<api>
-	<var: #cogMethod type: #'CogMethod *'>
-	<returnTypeC: #usqInt>
-	^self
-		mapFor: cogMethod
-		bcpc: startbcpc
-		performUntil: #find:IsBackwardBranch:Mcpc:Bcpc:MatchingBcpc:
-		arg: bcpc asVoidPointer
-]
-
-{ #category : 'method map' }
 Cogit >> mcPCForBackwardBranch: bcpc startBcpc: startbcpc in: cogMethod [
 	"Answer the absolute machine code pc matching the zero-relative
 	 bytecode pc of a backward branch in cogMethod, given the start
 	 of the bytecodes for cogMethod's method object."
 	<api>
-	<flag: #FIXME "this looks similar to #mcPCFor:startBcpc:in: (should we unify them?)">
 	<var: #cogMethod type: #'CogMethod *'>
 	<returnTypeC: #usqInt>
 	^self
@@ -11118,13 +11090,11 @@ Cogit >> unlinkIfInvalidClassSend: annotation pc: mcpc ignored: superfluity [
 
 	<flag: #icTableInvalidation>
 	<flag: #workingSet>
-	<flag: #FIXME>
 	<var: #mcpc type: #'char *'>
-	| icTable handler |
+	| icTable |
 	(self isSendAnnotation: annotation) ifFalse: [ ^ 0 "keep scanning" ].
 	icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
 	self assertValidICTable: icTable duringGC: true.
-	handler := objectRepresentation fetchHandlerOfTable: icTable.
 
 	self
 		unlinkSendTargetsOf: icTable

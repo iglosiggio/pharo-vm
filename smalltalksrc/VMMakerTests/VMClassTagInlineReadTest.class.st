@@ -12,7 +12,6 @@ Class {
 { #category : 'tests' }
 VMClassTagInlineReadTest >> testLinkingWithEntryOffset [
 
-	<flag: #seeGuille>
 	| sendingMethod targetMethod icTable cacheTag |
 	sendingMethod := self
 		                 jitMethod: (self findMethod: #methodWithSend)
