@@ -12,7 +12,8 @@ Class {
 { #category : 'tests' }
 VMClassTagInlineReadTest >> testLinkingWithEntryOffset [
 
-	| sendingMethod targetMethod callSiteReturn |
+	<flag: #seeGuille>
+	| sendingMethod targetMethod icTable cacheTag |
 	sendingMethod := self
 		                 jitMethod: (self findMethod: #methodWithSend)
 		                 selector: memory nilObject.
@@ -21,43 +22,42 @@ VMClassTagInlineReadTest >> testLinkingWithEntryOffset [
 		                jitMethod: (self findMethod: #yourself)
 		                selector: memory trueObject.
 
-	cogit sendSitesIn: sendingMethod do: [ :annotation :pc | callSiteReturn := pc ].
+	cogit sendTablesIn: sendingMethod do: [ :annotation :table | icTable := table ].
 
+	cacheTag := memory classIndexOf: memory falseObject.
 	cogit
-		linkSendAt: callSiteReturn
-		in: sendingMethod
-		to: targetMethod
-		offset: cogit entryOffset
-		receiver: memory falseObject.
-		
-	self assert: (cogit backend inlineCacheTagAt: callSiteReturn) equals:(memory classIndexOf: memory falseObject)
+		transitionToMonomorphicSend: icTable
+		cacheTag: cacheTag
+		cogMethod: targetMethod
+		isSuper: 0.
+
+	self assert: (memory fetchCacheTag: 0 ofTable: icTable) equals: cacheTag
 ]
 
 { #category : 'tests' }
 VMClassTagInlineReadTest >> testLinkingWithEntryOffsetLargeClassIndex [
 
-	| sendingMethod targetMethod callSiteReturn |
+	| sendingMethod targetMethod icTable cacheTag |
 	sendingMethod := self
 		                 jitMethod: (self findMethod: #methodWithSend)
 		                 selector: memory nilObject.
-
-	cogit sendSitesIn: sendingMethod do: [ :annotation :pc | callSiteReturn := pc ].
 
 	targetMethod := self
 		                jitMethod: (self findMethod: #yourself)
 		                selector: memory trueObject.
 
+	cogit sendTablesIn: sendingMethod do: [ :annotation :table | icTable := table ].
 
 	obj := self newZeroSizedObject.
-	memory setClassIndexOf: obj to: (1 << memory classIndexFieldWidth - 5).
+
+	cacheTag := 1 << memory classIndexFieldWidth - 5.
+	memory setClassIndexOf: obj to: cacheTag.
 
 	cogit
-		linkSendAt: callSiteReturn
-		in: sendingMethod
-		to: targetMethod
-		offset: cogit entryOffset
-		receiver: obj.
-	
+		transitionToMonomorphicSend: icTable
+		cacheTag: cacheTag
+		cogMethod: targetMethod
+		isSuper: 0.
 
-	self assert: (cogit backend inlineCacheTagAt: callSiteReturn) equals: (1 << memory classIndexFieldWidth - 5)
+	self assert: (memory fetchCacheTag: 0 ofTable: icTable) equals: cacheTag
 ]

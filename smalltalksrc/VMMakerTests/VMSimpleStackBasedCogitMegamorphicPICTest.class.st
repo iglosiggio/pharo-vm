@@ -165,7 +165,7 @@ VMSimpleStackBasedCogitMegamorphicPICTest >> testNewMegamorphicPICType [
 { #category : 'tests - PIC' }
 VMSimpleStackBasedCogitMegamorphicPICTest >> testRelinkCallSiteToMegamorphicPICCallsNewPIC [
 
-	| selector literalIndex method createdPic returnAfterCallAddress patchedCogMethod startAddress |
+	| selector literalIndex method createdPic cogMethod startAddress icTable |
 	sendTrampolineAddress := self compile: [ cogit RetN: 0 ].
 	cogit ordinarySendTrampolineAt: 0 put: sendTrampolineAddress. "num args"
 	self createFramefulCallFrom: callerAddress.
@@ -186,34 +186,22 @@ VMSimpleStackBasedCogitMegamorphicPICTest >> testRelinkCallSiteToMegamorphicPICC
 	The first literal is the methodHeader (smallInteger with flags).
 	Literal 0 -> we are not using it (now it is nil)
 	Literal 1 -> our selector"
-	patchedCogMethod := self
+	cogMethod := self
 		                    generateCogMethod: [ 
 		                    cogit genSendLiteralSelector0ArgsBytecode ]
 		                    selector: selector.
+	startAddress := cogMethod address + cogit noCheckEntryOffset.
 
 	createdPic := cogit cogOpenPICSelector: selector numArgs: 1.
 
-	"We call to get to the send trampoline"
+	"We call to get to the send trampoline, that way we will have the icTable loaded on the expected register"
 	self
-		runFrom: patchedCogMethod asInteger + cogit noCheckEntryOffset
+		runFrom: startAddress
 		until: sendTrampolineAddress.
 
-	returnAfterCallAddress := machineSimulator hasLinkRegister
-		                          ifTrue: [ 
-		                          machineSimulator linkRegisterValue ]
-		                          ifFalse: [ machineSimulator peekAddress ].
-	"Let's rewrite the call site"
-	cogit backEnd
-		rewriteInlineCacheAt: returnAfterCallAddress
-		tag: (cogit
-				 inlineCacheValueForSelector: selector
-				 in: patchedCogMethod
-				 at: returnAfterCallAddress)
-		target: createdPic asInteger + cogit entryOffset.
-		
-	startAddress := patchedCogMethod address + cogit noCheckEntryOffset.	
-	
-	cogit flushICacheFrom: startAddress to: startAddress + 32.
+	"Let's rewrite the icTable"
+	icTable := machineSimulator classRegisterValue.
+	cogit transitionToMegamorphicSend: icTable usingStub: createdPic.
 
 	"Let's rerun it to check if it gets to the patched address openPic"
 	self

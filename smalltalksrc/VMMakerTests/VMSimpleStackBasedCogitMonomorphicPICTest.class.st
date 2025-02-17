@@ -10,15 +10,13 @@ Class {
 VMSimpleStackBasedCogitMonomorphicPICTest >> testLinkCallDuringSendInTrampolineReplacesTheCallTargetWithTheCogMethodAddress [
 	"This is for the monomorphic case"
 
-	| sendingMethod targetCog selector executedTheTrampoline |
+	| sendingMethod targetCog selector executedTheTrampoline icTable |
 	self setUpCogMethodEntry.
 	sendTrampolineAddress := self compile: [ cogit RetN: 0 ].
 	cogit ordinarySendTrampolineAt: 0 put: sendTrampolineAddress. "num args"
 
 	selector := memory falseObject.
-	targetCog := self
-		             generateCogMethod: [ cogit RetN: 0 ]
-		             selector: selector.
+	targetCog := self generateCogMethod: [ cogit RetN: 0 ] selector: selector.
 
 	self createFramefulCallFrom: callerAddress.
 
@@ -28,18 +26,19 @@ VMSimpleStackBasedCogitMonomorphicPICTest >> testLinkCallDuringSendInTrampolineR
 		                 literals: { selector };
 		                 buildMethod.
 	cogit methodObj: sendingMethod.
-	sendAddress := self compile: [
-		               cogit genSendLiteralSelector0ArgsBytecode ].
+	sendAddress := self compile: [ cogit genSendLiteralSelector0ArgsBytecode ].
 
 	"Push receiver then send"
 	self pushAddress: memory falseObject.
 	self runFrom: sendAddress until: sendTrampolineAddress.
 
+	"This is not a reasonable test. Why aren't we testing the real trampoline?"
+	icTable := machineSimulator classRegisterValue.
 	cogit
-		linkSendAt: machineSimulator classRegisterValue
-		to: targetCog
-		offset: cogit entryOffset
-		receiver: memory falseObject.
+		transitionToMonomorphicSend: icTable
+		cacheTag: (memory classIndexOf: memory falseObject)
+		cogMethod: targetCog
+		isSuper: 0.
 
 	self pushAddress: memory falseObject.
 
@@ -48,24 +47,20 @@ VMSimpleStackBasedCogitMonomorphicPICTest >> testLinkCallDuringSendInTrampolineR
 		registerHook: [ executedTheTrampoline := true ]
 		atAddress: sendTrampolineAddress.
 
-	self
-		runFrom: sendAddress
-		until: targetCog asInteger + cogit entryOffset.
+	self runFrom: sendAddress until: targetCog asInteger + cogit entryOffset.
 	self deny: executedTheTrampoline
 ]
 
 { #category : 'tests - PIC' }
 VMSimpleStackBasedCogitMonomorphicPICTest >> testObtainInlineCacheFromLinkedCall [
 
-	| sendingMethod targetCog selector |
+	| sendingMethod targetCog selector icTable |
 	self setUpCogMethodEntry.
 	sendTrampolineAddress := self compile: [ cogit RetN: 0 ].
 	cogit ordinarySendTrampolineAt: 0 put: sendTrampolineAddress. "num args"
 
 	selector := memory falseObject.
-	targetCog := self
-		             generateCogMethod: [ cogit RetN: 0 ]
-		             selector: selector.
+	targetCog := self generateCogMethod: [ cogit RetN: 0 ] selector: selector.
 
 	self createFramefulCallFrom: callerAddress.
 
@@ -74,22 +69,21 @@ VMSimpleStackBasedCogitMonomorphicPICTest >> testObtainInlineCacheFromLinkedCall
 		                 literals: { selector };
 		                 buildMethod.
 	cogit methodObj: sendingMethod.
-	sendAddress := self compile: [
-		               cogit genSendLiteralSelector0ArgsBytecode ].
+	sendAddress := self compile: [ cogit genSendLiteralSelector0ArgsBytecode ].
 
 	"Push receiver then send"
 	self pushAddress: memory falseObject.
 	self runFrom: sendAddress until: sendTrampolineAddress.
 
+	icTable := machineSimulator classRegisterValue.
 	cogit
-		linkSendAt: machineSimulator classRegisterValue
-		to: targetCog
-		offset: cogit entryOffset
-		receiver: memory falseObject.
-"FIXME: This test does not make sense, we are hand-patching the IC table and then checking that the patch patched the table"
+		transitionToMonomorphicSend: icTable
+		cacheTag: (memory classIndexOf: memory falseObject)
+		cogMethod: targetCog
+		isSuper: 0.
+
 	self
-		assert:
-		(cogit backend inlineCacheTagAt: machineSimulator getReturnAddress)
-		equals: (cogit objectRepresentation inlineCacheTagForInstance:
-				 memory falseObject)
+		assert: (memory fetchCacheTag: 0 ofTable: icTable)
+		equals:
+		(cogit objectRepresentation inlineCacheTagForInstance: memory falseObject)
 ]

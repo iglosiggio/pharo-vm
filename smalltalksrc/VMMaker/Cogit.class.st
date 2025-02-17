@@ -10266,13 +10266,13 @@ Cogit >> relocateIfCallOrMethodReference: annotation mcpc: mcpc delta: refDelta 
 							| newCacheValue |
 							newCacheValue := cacheValue + cacheCogMethod objectHeader.
 
-							objectRepresentation
+							objectMemory
 								storeCacheValue: i
 								ofTable: icTable
 								with: newCacheValue ] ] ].
 			^ 0 ].
 
-		handler := objectRepresentation fetchHandlerOfTable: icTable.
+		handler := objectMemory fetchHandlerOfTable: icTable.
 		self assert: (methodZone isInMethodZone: handler).
 
 		"It's either a monomorphic or a megamorphic send"
@@ -10288,7 +10288,7 @@ Cogit >> relocateIfCallOrMethodReference: annotation mcpc: mcpc delta: refDelta 
 				| newHandler |
 				"Relocate handler"
 				newHandler := handler + handlerMethod objectHeader.
-				objectRepresentation storeHandlerOfTable: icTable with: newHandler ].
+				objectMemory storeHandlerOfTable: icTable with: newHandler ].
 		^ 0 ].
 
 	annotation = IsRelativeCall ifTrue: [
@@ -10447,6 +10447,21 @@ Cogit >> selectorFromSelectorIndex: selectorIndex in: aCompiledMethod [
 	^selectorIndex < 0
 		ifTrue: [(coInterpreter specialSelector: -1 - selectorIndex)]
 		ifFalse: [coInterpreter literal: selectorIndex ofMethod: aCompiledMethod]
+]
+
+{ #category : 'analysis' }
+Cogit >> sendTablesIn: cogMethod do: binaryBlock [
+	"Iterate through all the send tables in a cogged method"
+
+	<doNotGenerate>
+	self
+		mapFor: cogMethod
+		performUntil: #withAnnotation:mcpc:evaluate:
+		arg: [ :ann :mcpc |
+			(self isSendAnnotation: ann) ifTrue: [
+				| icTable |
+				icTable := self fetchLiteralAtAnnotatedAddress: mcpc.
+				binaryBlock value: ann value: icTable ] ]
 ]
 
 { #category : 'debugging' }

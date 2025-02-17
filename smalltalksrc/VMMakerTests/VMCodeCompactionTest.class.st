@@ -277,7 +277,7 @@ VMCodeCompactionTest >> testCompactingShouldRelocateMethodReference [
 { #category : 'tests' }
 VMCodeCompactionTest >> testCompactingShouldRelocateMonomorphicCallsite [
 
-	| firstMethod callerMethodOop calleeCogMethod selector callerCogMethod calleeMethodOop |
+	| firstMethod callerMethodOop calleeCogMethod selector callerCogMethod calleeMethodOop icTable |
 	"Create a method that will be collected and force compaction of all the next ones"
 	firstMethod := self
 		               jitMethod: (self findMethod: #methodToCompile1)
@@ -286,8 +286,7 @@ VMCodeCompactionTest >> testCompactingShouldRelocateMonomorphicCallsite [
 
 	"Method that will be linked to"
 	calleeCogMethod := self
-		                   jitMethod:
-		                   (self findMethod: #methodThatCallPrimitive1:)
+		                   jitMethod: (self findMethod: #methodThatCallPrimitive1:)
 		                   selector: memory falseObject.
 	calleeCogMethod cmUsageCount: 4.
 	calleeMethodOop := calleeCogMethod methodObject.
@@ -310,11 +309,12 @@ VMCodeCompactionTest >> testCompactingShouldRelocateMonomorphicCallsite [
 		runFrom: callerCogMethod address + cogit noCheckEntryOffset
 		until: sendTrampolineAddress.
 
+	icTable := machineSimulator classRegisterValue.
 	cogit
-		oldLinkSendAt: machineSimulator getReturnAddress
-		to: calleeCogMethod
-		offset: cogit entryOffset
-		receiver: memory falseObject.
+		transitionToMonomorphicSend: icTable
+		cacheTag: (memory classIndexOf: memory falseObject)
+		cogMethod: calleeCogMethod
+		isSuper: 0.
 
 	self createBaseFrame.
 	interpreter commenceCogCompiledCodeCompaction.
@@ -324,15 +324,15 @@ VMCodeCompactionTest >> testCompactingShouldRelocateMonomorphicCallsite [
 	self pushAddress: memory falseObject.
 
 	self
-		runFrom: (interpreter cogMethodOf: callerMethodOop) address
-			+ cogit noCheckEntryOffset
-		until: (interpreter cogMethodOf: calleeMethodOop) asInteger
-			+ cogit entryOffset.
+		runFrom:
+		(interpreter cogMethodOf: callerMethodOop) address + cogit noCheckEntryOffset
+		until:
+		(interpreter cogMethodOf: calleeMethodOop) asInteger + cogit entryOffset.
 
 	self
 		assert: machineSimulator instructionPointerRegisterValue
-		equals: (interpreter cogMethodOf: calleeMethodOop) asInteger
-			+ cogit entryOffset
+		equals:
+		(interpreter cogMethodOf: calleeMethodOop) asInteger + cogit entryOffset
 ]
 
 { #category : 'tests' }
