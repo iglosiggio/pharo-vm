@@ -2646,12 +2646,6 @@ CogARMCompiler >> jumpLongConditionalByteSize [
 	^self jumpLongByteSize
 ]
 
-{ #category : 'inline cacheing' }
-CogARMCompiler >> jumpLongTargetBeforeFollowingAddress: mcpc [ 
-	"Answer the target address for the long jump immediately preceding mcpc"
-	^self callTargetFromReturnAddress: mcpc
-]
-
 { #category : 'disassembly' }
 CogARMCompiler >> jumpTargetPCAt: pc [
 	<returnTypeC: #usqInt>
