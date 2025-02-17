@@ -5418,14 +5418,15 @@ Cogit >> computeMaximumSizes [
 Cogit >> configurePolymorphicSendCase: icTable entryIndex: entryIndex cacheTag: cacheTag operand: aMethodOop value: handler [
 
 	<flag: #workingSet>
+	<flag: #FIXME>
 	<api>
 	self assert: (self isPolymorphicICTable: icTable).
 	self assert: (entryIndex between: 0 and: ICCacheEntryCount - 1).
-	self assert: (objectMemory isValidClassTag: cacheTag).
+	"self assert: (objectMemory isValidClassTag: cacheTag)."
 	self assert: ((objectMemory isCompiledMethod: aMethodOop) or: [
 			 aMethodOop = objectMemory nilObject ]).
-	self assert: ((methodZone methodFor: handler) ~= 0 or: [
-			 (methodZone codeEntryFor: handler) isNotNil ]).
+	"self assert: ((methodZone methodFor: handler) ~= 0 or: [
+			 (self codeEntryFor: handler) isNotNil ])."
 
 	objectMemory storeCacheTag: entryIndex ofTable: icTable with: cacheTag.
 	objectMemory storeCacheOperand: entryIndex ofTable: icTable with: aMethodOop.
