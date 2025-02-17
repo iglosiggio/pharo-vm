@@ -465,11 +465,16 @@ VMCodeCompactionTest >> testCompactingShouldRelocatePolymorphicPICCallsite [
 
 { #category : 'tests' }
 VMCodeCompactionTest >> testCompactingShouldRelocatePolymorphicPICInterpreterAbortCallsite [
-	"This method sets up a method A that is linked to a polymorphic PIC linked to B and C.
-	Code compaction is launched so both A, B, C and the PIC are moved and remapped.
+	"This method sets up a method A with a polymorphic send-site linked to B and C.
+	Code compaction is launched so both A, B, C moved and remapped.
+	The send table associated with the A's send-site is also remapped.
 	Re-sending a message should still work and arrive to all cases of the PIC after remap."
 
-	| firstMethod callerMethodOop calleeCogMethod selector callerCogMethod calleeMethodOop calleeCogMethod2 calleeMethodOop2 pic |
+	| firstMethod callerMethodOop calleeCogMethod selector callerCogMethod calleeMethodOop calleeMethodOop2 icTable |
+	cogit
+		allocateTrampolineOpcodes;
+		generatePolymorphicSendTrampolines.
+
 	"Create a method that will be collected and force compaction of all the next ones"
 	firstMethod := self
 		               jitMethod: (self findMethod: #methodToCompile1)
@@ -492,8 +497,7 @@ VMCodeCompactionTest >> testCompactingShouldRelocatePolymorphicPICInterpreterAbo
 	calleeMethodOop := calleeCogMethod methodObject.
 
 	calleeMethodOop2 := methodBuilder
-		                    fillFromPharoMethod:
-			                    (self findMethod: #methodWithSend);
+		                    fillFromPharoMethod: (self findMethod: #methodWithSend);
 		                    buildMethod.
 
 	"Setup the frame to do the patch"
@@ -506,27 +510,22 @@ VMCodeCompactionTest >> testCompactingShouldRelocatePolymorphicPICInterpreterAbo
 		runFrom: callerCogMethod address + cogit noCheckEntryOffset
 		until: sendTrampolineAddress.
 
-	"First monomorphic link"
+	"Transition to a polymorphic send-site and link it"
+	icTable := machineSimulator classRegisterValue.
+	cogit transitionToPolymorphicSend: icTable numArgs: 1.
 	cogit
-		oldLinkSendAt: machineSimulator getReturnAddress
-		to: calleeCogMethod
-		offset: cogit entryOffset
-		receiver: memory falseObject.
-
-	"Then create the PIC and link it"
-	interpreter setBreakSelectorLength: memory minSmallInteger.
-	pic := cogit
-		       cogPICSelector: selector
-		       numArgs: 1
-		       Case0Method: calleeCogMethod
-		       Case1Method: calleeMethodOop2
-		       tag: (cogit objectRepresentation inlineCacheTagForInstance:
-				        (memory integerObjectOf: 7))
-		       isMNUCase: false.
-	pic cmUsageCount: 4.
-	cogit backEnd
-		rewriteCallAt: machineSimulator getReturnAddress
-		target: pic asInteger + cogit entryOffset.
+		configurePolymorphicSendCase: icTable
+		entryIndex: 0
+		cacheTag: (memory classIndexOf: memory falseObject)
+		operand: calleeMethodOop
+		value: calleeCogMethod address + cogit noCheckEntryOffset.
+	cogit
+		configurePolymorphicSendCase: icTable
+		entryIndex: 1
+		cacheTag: (cogit objectRepresentation inlineCacheTagForInstance:
+				 (memory integerObjectOf: 7))
+		operand: calleeMethodOop2
+		value: (cogit polymorphicSendInterpretFor: 1).
 
 	"Fill the code zone with more methods to force compaction"
 	self fillCodeZone.
@@ -542,22 +541,28 @@ VMCodeCompactionTest >> testCompactingShouldRelocatePolymorphicPICInterpreterAbo
 		prepareStackForSendReceiver: memory falseObject
 		arguments: { (memory integerObjectOf: 7) }.
 	self
-		runFrom: (interpreter cogMethodOf: callerMethodOop) address
-			+ cogit noCheckEntryOffset
-		until: cogit cePICAbortTrampoline.
+		runFrom:
+		(interpreter cogMethodOf: callerMethodOop) address + cogit noCheckEntryOffset
+		until: (cogit simulatedTrampolineFor:
+				 #cePolymorphicSendInterpret:method:receiver:numArgs:).
 
 	self
 		assert: machineSimulator instructionPointerRegisterValue
-		equals: cogit cePICAbortTrampoline
+		equals: (cogit simulatedTrampolineFor:
+				 #cePolymorphicSendInterpret:method:receiver:numArgs:)
 ]
 
 { #category : 'tests' }
 VMCodeCompactionTest >> testCompactingShouldRelocatePolymorphicPICMNUAbortCallsite [
-	"This method sets up a method A that is linked to a polymorphic PIC linked to B and C.
-	Code compaction is launched so both A, B, C and the PIC are moved and remapped.
+	"This method sets up a method A with a polymorphic send-site linked to B and C.
+	Code compaction is launched so both A, B, C moved and remapped.
+	The send table associated with the A's send-site is also remapped.
 	Re-sending a message should still work and arrive to all cases of the PIC after remap."
 
-	| firstMethod callerMethodOop calleeCogMethod selector callerCogMethod calleeMethodOop calleeCogMethod2 calleeMethodOop2 pic |
+	| firstMethod callerMethodOop calleeCogMethod selector callerCogMethod calleeMethodOop calleeCogMethod2 calleeMethodOop2 icTable |
+	cogit
+		allocateTrampolineOpcodes;
+		generatePolymorphicSendTrampolines.
 	"Create a method that will be collected and force compaction of all the next ones"
 	firstMethod := self
 		               jitMethod: (self findMethod: #methodToCompile1)
@@ -595,27 +600,22 @@ VMCodeCompactionTest >> testCompactingShouldRelocatePolymorphicPICMNUAbortCallsi
 		runFrom: callerCogMethod address + cogit noCheckEntryOffset
 		until: sendTrampolineAddress.
 
-	"First monomorphic link"
+	"Transition to a polymorphic send-site and link it"
+	icTable := machineSimulator classRegisterValue.
+	cogit transitionToPolymorphicSend: icTable numArgs: 1.
 	cogit
-		oldLinkSendAt: machineSimulator getReturnAddress
-		to: calleeCogMethod
-		offset: cogit entryOffset
-		receiver: memory falseObject.
-
-	"Then create the PIC and link it"
-	interpreter setBreakSelectorLength: memory minSmallInteger.
-	pic := cogit
-		       cogPICSelector: selector
-		       numArgs: 1
-		       Case0Method: calleeCogMethod
-		       Case1Method: calleeMethodOop2
-		       tag: (cogit objectRepresentation inlineCacheTagForInstance:
-				        (memory integerObjectOf: 7))
-		       isMNUCase: true.
-	pic cmUsageCount: 4.
-	cogit backEnd
-		rewriteCallAt: machineSimulator getReturnAddress
-		target: pic asInteger + cogit entryOffset.
+		configurePolymorphicSendCase: icTable
+		entryIndex: 0
+		cacheTag: (memory classIndexOf: memory falseObject)
+		operand: calleeCogMethod methodObject
+		value: calleeCogMethod address + cogit noCheckEntryOffset.
+	cogit
+		configurePolymorphicSendCase: icTable
+		entryIndex: 1
+		cacheTag: (cogit objectRepresentation inlineCacheTagForInstance:
+				 (memory integerObjectOf: 7))
+		operand: calleeMethodOop2
+		value: (cogit polymorphicSendMNUFor: 1).
 
 	"Fill the code zone with more methods to force compaction"
 	self fillCodeZone.
@@ -631,13 +631,15 @@ VMCodeCompactionTest >> testCompactingShouldRelocatePolymorphicPICMNUAbortCallsi
 		prepareStackForSendReceiver: memory falseObject
 		arguments: { (memory integerObjectOf: 7) }.
 	self
-		runFrom: (interpreter cogMethodOf: callerMethodOop) address
-			+ cogit noCheckEntryOffset
-		until: cogit cePICAbortTrampoline.
+		runFrom:
+		(interpreter cogMethodOf: callerMethodOop) address + cogit noCheckEntryOffset
+		until:
+		(cogit simulatedTrampolineFor: #cePolymorphicSendMNU:method:receiver:numArgs:).
 
 	self
 		assert: machineSimulator instructionPointerRegisterValue
-		equals: cogit cePICAbortTrampoline
+		equals:
+		(cogit simulatedTrampolineFor: #cePolymorphicSendMNU:method:receiver:numArgs:)
 ]
 
 { #category : 'tests' }
