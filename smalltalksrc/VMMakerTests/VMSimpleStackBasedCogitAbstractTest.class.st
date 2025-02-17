@@ -369,10 +369,11 @@ VMSimpleStackBasedCogitAbstractTest >> createSpecialSelectorArray [
 	| specialObjectsOop  |
 	specialObjectsOop := self newArrayWithSlots: 24.
 	selectorIndex := Smalltalk specialSelectors indexOf: sentSelector.
+	selectorAtIndex := memory integerObjectOf: selectorIndex "Some object to test".
 	obj := self newArrayWithSlots: selectorIndex + 1.
 	memory
 		storePointer: selectorIndex - 1
-		ofObject: obj withValue: (selectorAtIndex := memory integerObjectOf: 77 "Some object to test").
+		ofObject: obj withValue: selectorAtIndex.
 	memory
 		storePointer: selectorIndex
 		ofObject: obj withValue: (memory integerObjectOf: sentSelector numArgs).

@@ -18,13 +18,17 @@ VMSimpleStackBasedCogitCoggedMethods >> setUp [
 { #category : 'tests' }
 VMSimpleStackBasedCogitCoggedMethods >> testUsingEntryOffsetChecksClassRegisterAndContinue [
 
-	| cogMethod otherBlock |
+	| cogMethod otherBlock icTable |
 	otherBlock := self compile: [ cogit Nop ].
 	cogMethod := self generateCogMethod: [ cogit Jump: otherBlock ] selector: memory falseObject.
-	
-	"Let's set the receiver class index in the classRegister"
-	machineSimulator classRegisterValue: (memory classIndexOf: memory nilObject).
-	
+
+	icTable := memory allocateICTable: (memory integerObjectOf: 0)  withUnlinkedHandler: 0.
+	"Let's set the receiver class intext as the first cache tag"
+	memory storeCacheTag: 0 ofTable: icTable with: (memory classIndexOf: memory nilObject).
+
+	"Load the icTable on the ClassRegister"
+	machineSimulator classRegisterValue: icTable.
+
 	self runFrom: cogMethod address + cogit entryOffset until: otherBlock.
 
 	self assert: machineSimulator instructionPointerRegisterValue equals: otherBlock 
@@ -33,13 +37,17 @@ VMSimpleStackBasedCogitCoggedMethods >> testUsingEntryOffsetChecksClassRegisterA
 { #category : 'tests' }
 VMSimpleStackBasedCogitCoggedMethods >> testUsingEntryOffsetChecksClassRegisterAndGoesToAbort [
 
-	| cogMethod otherBlock |
+	| cogMethod otherBlock icTable |
 	otherBlock := self compile: [ cogit Nop ].
 	cogMethod := self generateCogMethod: [ cogit Jump: otherBlock ] selector: memory falseObject.
-	
-	"Let's set any value in the ClassRegister"
-	machineSimulator classRegisterValue: 16rFF.
-	
+
+	icTable := memory allocateICTable: (memory integerObjectOf: 0)  withUnlinkedHandler: 0.
+	"Let's set any value as the first cache tag"
+	memory storeCacheTag: 0 ofTable: icTable with: 16rFF.
+
+	"Load the icTable on the ClassRegister"
+	machineSimulator classRegisterValue: icTable.
+
 	self runFrom: cogMethod address + cogit entryOffset until: cogit ceMethodAbortTrampoline.
 
 	self assert: machineSimulator instructionPointerRegisterValue equals: cogit ceMethodAbortTrampoline 

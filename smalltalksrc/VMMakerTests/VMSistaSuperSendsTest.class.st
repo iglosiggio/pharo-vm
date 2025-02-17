@@ -15,9 +15,9 @@ VMSistaSuperSendsTest >> jitOptions [
 ]
 
 { #category : 'tests - sends/super' }
-VMSistaSuperSendsTest >> testSuperSendLiteralZeroWithZeroArgsMovesSelectorIndexClassRegisterIn64bits [
+VMSistaSuperSendsTest >> testSuperSendLiteralZeroWithZeroArgsMovesICTableIntoClassRegister [
 
-	| selector binding literalVariableIndex literalSelectorIndex startPC receiver expectedSelector |
+	| selector binding literalVariableIndex literalSelectorIndex startPC receiver |
 	sendTrampolineAddress := self compile: [ cogit RetN: 0 ].
 	cogit
 		directedBindingSuperSendTrampolineAt: 0
@@ -60,14 +60,9 @@ VMSistaSuperSendsTest >> testSuperSendLiteralZeroWithZeroArgsMovesSelectorIndexC
 		arguments: { (memory integerObjectOf: 42) }.
 	self runFrom: sendAddress until: sendTrampolineAddress.
 
-	"In 64 bits we have the literal selector index that will be mapped by the send trampoline.
-	In 32 bits we have the selector directly."
-	expectedSelector := self wordSize = 8
-		                    ifTrue: [ literalSelectorIndex ]
-		                    ifFalse: [ selector ].
 	self
-		assert: machineSimulator classRegisterValue
-		equals: expectedSelector.
+		assert: (memory fetchSelectorOfTable: machineSimulator classRegisterValue)
+		equals: selector.
 	self assert: machineSimulator temporaryRegisterValue equals: binding.
 	self assert: machineSimulator receiverRegisterValue equals: receiver
 ]

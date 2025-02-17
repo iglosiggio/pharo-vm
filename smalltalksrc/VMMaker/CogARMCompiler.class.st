@@ -2321,6 +2321,35 @@ CogARMCompiler >> genPushRegisterArgsForNumArgs: numArgs scratchReg: ignored [
 				[cogit PushR: Arg1Reg]]]
 ]
 
+{ #category : 'smalltalk calling convention' }
+CogARMCompiler >> genPushRegisterArgsForPolymorphicSendTrampoline: numArgs scratchReg: anObject [
+	"Ensure that the register args are pushed before the retpc at a
+	 polymorphic send miss for arity <= self numRegArgs.  The retpc
+	  is that of a call at a send site."
+
+	"Putting the receiver and args above the return address means the
+	 CoInterpreter has a single machine-code frame format which saves
+	 us a lot of work."
+
+	"Iff there are register args convert
+		linkReg = retpc			(send site retpc)
+	 to
+		base	->	receiver
+					(arg0)
+					(arg1)
+		sp		->	retpc			(send site retpc)"
+
+	numArgs <= cogit numRegArgs ifTrue: [
+		cogit PushR: ReceiverResultReg.
+		1 <= numArgs ifTrue: [ cogit PushR: Arg0Reg ].
+		2 <= numArgs ifTrue: [ cogit PushR: Arg1Reg ].
+		self assert: numArgs <= 2.
+
+		"Sends with a small number of arguments carry their count implicitly. Time to make it explicit"
+		cogit MoveCq: numArgs R: SendNumArgsReg ].
+	cogit PushR: LinkReg
+]
+
 { #category : 'generate machine code' }
 CogARMCompiler >> genPushRegisterMask: registersToBeSavedMask [
 	<inline: true>

@@ -1210,48 +1210,9 @@ VMSimpleStackBasedCogitBytecodeTest >> testSendEqualsEqualsWithNonIdenticalObjec
 ]
 
 { #category : 'tests - sends' }
-VMSimpleStackBasedCogitBytecodeTest >> testSendLiteralOneWithZeroArgsMovesSelectorIndexClassRegisterIn64bits [
+VMSimpleStackBasedCogitBytecodeTest >> testSendLiteralOneWithZeroArgsMovesICTableIntoClassRegister [
 
-	| selector literalIndex |
-	self wordSize = 4 ifTrue: [ ^ self skip ].
-
-	sendTrampolineAddress := self compile: [ cogit RetN: 0 ].
-	cogit ordinarySendTrampolineAt: 0 put: sendTrampolineAddress. "num args"
-
-	self createFramefulCallFrom: callerAddress.
-
-	literalIndex := 1.
-	"The literal index is extracted from the byte0 of the instruction
-	It is encoded with the bytecode number.
-	The 208 is the first bytecode to send messages with zero arguments.
-	The literal taken starts from zero in 208, one in 209... and so on"
-	cogit byte0: 208 + literalIndex.
-	selector := memory falseObject.
-	cogit methodObj: (methodBuilder newMethod
-			 literalAt: literalIndex put: selector;
-			 buildMethod).
-
-	"The method will have 3 literals.
-	The first literal is the methodHeader (smallInteger with flags).
-	Literal 0 -> we are not using it (now it is nil)
-	Literal 1 -> our selector"
-
-	sendAddress := self compile: [ 
-		               cogit genSendLiteralSelector0ArgsBytecode ].
-
-	"Push receiver, arg, then send"
-	self pushAddress: memory falseObject.
-	self runFrom: sendAddress until: sendTrampolineAddress.
-
-	self assert: machineSimulator classRegisterValue equals: literalIndex
-]
-
-{ #category : 'tests - sends' }
-VMSimpleStackBasedCogitBytecodeTest >> testSendLiteralOneWithZeroArgsMovesSelectorIntoClassRegisterIn32bits [
-
-	| selector literalIndex |
-	self wordSize = 8 ifTrue: [ ^ self skip ].
-
+	| selector literalIndex icTable |
 	sendTrampolineAddress := self compile: [ cogit RetN: 0 ].
 	cogit ordinarySendTrampolineAt: 0 put: sendTrampolineAddress. "num args"
 
@@ -1271,7 +1232,34 @@ VMSimpleStackBasedCogitBytecodeTest >> testSendLiteralOneWithZeroArgsMovesSelect
 	self pushAddress: memory trueObject.
 	self runFrom: sendAddress until: sendTrampolineAddress.
 
-	self assert: machineSimulator classRegisterValue equals: selector
+	icTable := machineSimulator classRegisterValue.
+	self assert: (memory fetchSelectorOfTable: icTable) equals: selector
+]
+
+{ #category : 'tests - sends' }
+VMSimpleStackBasedCogitBytecodeTest >> testSendLiteralZeroWithZeroArgsMovesICTableIntoClassRegister [
+
+	| selector icTable |
+	sendTrampolineAddress := self compile: [ cogit RetN: 0 ].
+	cogit ordinarySendTrampolineAt: 0 put: sendTrampolineAddress. "num args"
+
+	self createFramefulCallFrom: callerAddress.
+
+	cogit byte0: 0.
+	selector := memory falseObject.
+	cogit methodObj: (methodBuilder newMethod
+			 literals: { selector };
+			 buildMethod).
+	sendAddress := self compile: [ 
+		               cogit genSendLiteralSelector0ArgsBytecode ].
+
+	"Push receiver, arg, then send"
+	self pushAddress: memory falseObject.
+	self pushAddress: memory trueObject.
+	self runFrom: sendAddress until: sendTrampolineAddress.
+
+	icTable := machineSimulator classRegisterValue.
+	self assert: (memory fetchSelectorOfTable: icTable) equals: selector
 ]
 
 { #category : 'tests - sends' }
@@ -1296,60 +1284,6 @@ VMSimpleStackBasedCogitBytecodeTest >> testSendLiteralZeroWithZeroArgsMovesRecei
 	self
 		assert: machineSimulator receiverRegisterValue
 		equals: memory falseObject
-]
-
-{ #category : 'tests - sends' }
-VMSimpleStackBasedCogitBytecodeTest >> testSendLiteralZeroWithZeroArgsMovesSelectorIndexClassRegisterIn64bits [
-
-	| selector literalIndex |
-	self wordSize = 4 ifTrue: [ ^ self skip ].
-
-	sendTrampolineAddress := self compile: [ cogit RetN: 0 ].
-	cogit ordinarySendTrampolineAt: 0 put: sendTrampolineAddress. "num args"
-
-	self createFramefulCallFrom: callerAddress.
-
-	cogit byte0: 0.
-	selector := memory falseObject.
-	cogit methodObj: (methodBuilder newMethod
-			 literalAt: (literalIndex := 0) put: selector;
-			 buildMethod).
-	sendAddress := self compile: [ 
-		               cogit genSendLiteralSelector0ArgsBytecode ].
-
-	"Push receiver, arg, then send"
-	self pushAddress: memory falseObject.
-	self pushAddress: memory trueObject.
-	self runFrom: sendAddress until: sendTrampolineAddress.
-
-	self assert: machineSimulator classRegisterValue equals: literalIndex
-]
-
-{ #category : 'tests - sends' }
-VMSimpleStackBasedCogitBytecodeTest >> testSendLiteralZeroWithZeroArgsMovesSelectorIntoClassRegisterIn32bits [
-
-	| selector |
-	self wordSize = 8 ifTrue: [ ^ self skip ].
-
-	sendTrampolineAddress := self compile: [ cogit RetN: 0 ].
-	cogit ordinarySendTrampolineAt: 0 put: sendTrampolineAddress. "num args"
-
-	self createFramefulCallFrom: callerAddress.
-
-	cogit byte0: 0.
-	selector := memory falseObject.
-	cogit methodObj: (methodBuilder newMethod
-			 literals: { selector };
-			 buildMethod).
-	sendAddress := self compile: [ 
-		               cogit genSendLiteralSelector0ArgsBytecode ].
-
-	"Push receiver, arg, then send"
-	self pushAddress: memory falseObject.
-	self pushAddress: memory trueObject.
-	self runFrom: sendAddress until: sendTrampolineAddress.
-
-	self assert: machineSimulator classRegisterValue equals: selector
 ]
 
 { #category : 'tests - sends' }
@@ -1432,11 +1366,9 @@ VMSimpleStackBasedCogitBytecodeTest >> testSendOneArgSpecialMessageDoesNotMovesI
 ]
 
 { #category : 'tests - special sends' }
-VMSimpleStackBasedCogitBytecodeTest >> testSendOneArgSpecialMessageMovesNegatedSelectorIndexIntoClassRegisterIn64bits [
+VMSimpleStackBasedCogitBytecodeTest >> testSendOneArgSpecialMessageMovesICTableIntoClassRegister [
 	
-	| signed |
-	
-	self wordSize = 4 ifTrue: [ self skip ].
+	| icTable |
 	
 	sentSelector := #+.
 	self createSpecialSelectorArray.
@@ -1446,14 +1378,11 @@ VMSimpleStackBasedCogitBytecodeTest >> testSendOneArgSpecialMessageMovesNegatedS
 	self pushAddress: memory falseObject.
 	self pushAddress: memory trueObject.
 	self runFrom: sendAddress until: sendTrampolineAddress.
-	
-	signed := (ByteArray new: self wordSize)
-		in: [ :a | 
-			a integerAt: 1 put: machineSimulator classRegisterValue size: self wordSize signed: false.
-			a integerAt: 1 size: self wordSize signed: true ].
+
+	icTable := machineSimulator classRegisterValue.
 	self
-		assert: signed
-		equals: (selectorIndex + 1 / 2) negated
+		assert: (memory fetchSelectorOfTable: icTable)
+		equals: selectorAtIndex
 ]
 
 { #category : 'tests - special sends' }
@@ -1469,25 +1398,6 @@ VMSimpleStackBasedCogitBytecodeTest >> testSendOneArgSpecialMessageMovesReceiver
 	self runFrom: sendAddress until: sendTrampolineAddress.
 	
 	self assert: machineSimulator receiverRegisterValue equals: memory falseObject
-]
-
-{ #category : 'tests - special sends' }
-VMSimpleStackBasedCogitBytecodeTest >> testSendOneArgSpecialMessageMovesSelectorIntoClassRegisterIn32bits [
-	
-	self wordSize = 8 ifTrue: [ self skip ].
-	
-	sentSelector := #+.
-	self createSpecialSelectorArray.
-	self compileSpecialSend.
-	
-	"Push receiver, arg, then send"
-	self pushAddress: memory falseObject.
-	self pushAddress: memory trueObject.
-	self runFrom: sendAddress until: sendTrampolineAddress.
-	
-	self
-		assert: machineSimulator classRegisterValue
-		equals: selectorAtIndex
 ]
 
 { #category : 'tests - special sends' }
@@ -1531,11 +1441,9 @@ VMSimpleStackBasedCogitBytecodeTest >> testSendTwoArgSpecialMessageDoesNotMovesI
 ]
 
 { #category : 'tests - special sends' }
-VMSimpleStackBasedCogitBytecodeTest >> testSendTwoArgSpecialMessageMovesNegatedSelectorIndexIntoClassRegisterIn64bits [
+VMSimpleStackBasedCogitBytecodeTest >> testSendTwoArgSpecialMessageMovesICTableIntoClassRegister [
 	
-	| signed |
-	
-	self wordSize = 4 ifTrue: [ self skip ].
+	| icTable |
 	
 	sentSelector := #at:put:.
 	self createSpecialSelectorArray.
@@ -1546,14 +1454,11 @@ VMSimpleStackBasedCogitBytecodeTest >> testSendTwoArgSpecialMessageMovesNegatedS
 	self pushAddress: memory trueObject.
 	self pushAddress: (memory integerObjectOf: 7).
 	self runFrom: sendAddress until: sendTrampolineAddress.
-	
-	signed := (ByteArray new: self wordSize)
-		in: [ :a | 
-			a integerAt: 1 put: machineSimulator classRegisterValue size: self wordSize signed: false.
-			a integerAt: 1 size: self wordSize signed: true ].
+
+	icTable := machineSimulator classRegisterValue.
 	self
-		assert: signed
-		equals: (selectorIndex + 1 / 2) negated
+		assert: (memory fetchSelectorOfTable: icTable)
+		equals: selectorAtIndex
 ]
 
 { #category : 'tests - special sends' }
@@ -1570,32 +1475,6 @@ VMSimpleStackBasedCogitBytecodeTest >> testSendTwoArgSpecialMessageMovesReceiver
 	self runFrom: sendAddress until: sendTrampolineAddress.
 	
 	self assert: machineSimulator receiverRegisterValue equals: memory falseObject
-]
-
-{ #category : 'tests - special sends' }
-VMSimpleStackBasedCogitBytecodeTest >> testSendTwoArgSpecialMessageMovesSelectorIntoClassRegisterIn32bits [
-	
-	| signed |
-	
-	self wordSize = 4 ifTrue: [ self skip ].
-	
-	sentSelector := #at:put:.
-	self createSpecialSelectorArray.
-	self compileSpecialSend.
-	
-	"Push receiver, arg1, arg2 then send"
-	self pushAddress: memory falseObject.
-	self pushAddress: memory trueObject.
-	self pushAddress: (memory integerObjectOf: 7).
-	self runFrom: sendAddress until: sendTrampolineAddress.
-	
-	signed := (ByteArray new: self wordSize)
-		in: [ :a | 
-			a integerAt: 1 put: machineSimulator classRegisterValue size: self wordSize signed: false.
-			a integerAt: 1 size: self wordSize signed: true ].
-	self
-		assert: signed
-		equals: (selectorIndex + 1 / 2) negated
 ]
 
 { #category : 'tests - special sends' }
@@ -1638,11 +1517,9 @@ VMSimpleStackBasedCogitBytecodeTest >> testSendZeroArgSpecialMessageDoesNotMoves
 ]
 
 { #category : 'tests - special sends' }
-VMSimpleStackBasedCogitBytecodeTest >> testSendZeroArgSpecialMessageMovesNegatedSelectorIndexIntoClassRegisterIn64Bits [
+VMSimpleStackBasedCogitBytecodeTest >> testSendZeroArgSpecialMessageMovesICTableIntoClassRegister [
 	
-	| signed |
-	
-	self wordSize = 4 ifTrue: [ self skip ].
+	| icTable |
 	
 	sentSelector := #atEnd.
 	self createSpecialSelectorArray.
@@ -1652,13 +1529,10 @@ VMSimpleStackBasedCogitBytecodeTest >> testSendZeroArgSpecialMessageMovesNegated
 	self pushAddress: memory falseObject.
 	self runFrom: sendAddress until: sendTrampolineAddress.
 	
-	signed := (ByteArray new: self wordSize)
-		in: [ :a | 
-			a integerAt: 1 put: machineSimulator classRegisterValue size: self wordSize signed: false.
-			a integerAt: 1 size: self wordSize signed: true ].
+	icTable := machineSimulator classRegisterValue.
 	self
-		assert: signed
-		equals: (selectorIndex + 1 / 2) negated
+		assert: (memory fetchSelectorOfTable: icTable)
+		equals: selectorAtIndex
 ]
 
 { #category : 'tests - special sends' }
@@ -1673,24 +1547,6 @@ VMSimpleStackBasedCogitBytecodeTest >> testSendZeroArgSpecialMessageMovesReceive
 	self runFrom: sendAddress until: sendTrampolineAddress.
 	
 	self assert: machineSimulator receiverRegisterValue equals: memory falseObject
-]
-
-{ #category : 'tests - special sends' }
-VMSimpleStackBasedCogitBytecodeTest >> testSendZeroArgSpecialMessageMovesSelectorIntoClassRegisterIn32Bits [
-	
-	self wordSize = 8 ifTrue: [ self skip ].
-	
-	sentSelector := #atEnd.
-	self createSpecialSelectorArray.
-	self compileSpecialSend.
-	
-	"Push receiver, then send"
-	self pushAddress: memory falseObject.
-	self runFrom: sendAddress until: sendTrampolineAddress.
-	
-	self
-		assert: machineSimulator classRegisterValue
-		equals: selectorAtIndex
 ]
 
 { #category : 'tests - special sends' }

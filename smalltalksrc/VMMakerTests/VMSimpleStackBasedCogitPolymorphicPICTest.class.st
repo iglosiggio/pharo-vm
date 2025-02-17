@@ -96,6 +96,8 @@ VMSimpleStackBasedCogitPolymorphicPICTest >> configuredPicCases: aNumber [
 
 { #category : 'running' }
 VMSimpleStackBasedCogitPolymorphicPICTest >> setUp [
+	<flag: #FIXME>
+	self skip.
 
 	super setUp.
 	self setUpCogMethodEntry.

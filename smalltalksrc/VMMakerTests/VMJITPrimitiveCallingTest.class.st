@@ -557,7 +557,8 @@ VMJITPrimitiveCallingTest >> testPrimitiveFailingDoesNotSetErrorCodeInOtherTemp 
 		buildMethod.
 
 	"Initialize the reap primitive code trampoline"
-	cogit generateMissAbortTrampolines.
+	cogit allocateTrampolineOpcodes;
+		generateMissAbortTrampolines.
 	sendTrampolineAddress := self compile: [ cogit RetN: 0 ].
 	cogit ordinarySendTrampolineAt: 0 "num args" put: sendTrampolineAddress.	
 	callingMethod := cogit cog: method selector: memory falseObject.
@@ -596,7 +597,8 @@ VMJITPrimitiveCallingTest >> testPrimitiveFailingSetsErrorCodeInCorrectTemp [
 		buildMethod.
 
 	"Initialize the reap primitive code trampoline"
-	cogit generateMissAbortTrampolines.
+	cogit allocateTrampolineOpcodes;
+		generateMissAbortTrampolines.
 	sendTrampolineAddress := self compile: [ cogit RetN: 0 ].
 	cogit ordinarySendTrampolineAt: 0 "num args" put: sendTrampolineAddress.	
 	callingMethod := cogit cog: method selector: memory falseObject.

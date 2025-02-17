@@ -3138,6 +3138,12 @@ Cogit >> allocateOpcodes: numberOfAbstractOpcodes bytecodes: numberOfBytecodes i
 	labelCounter := 0
 ]
 
+{ #category : 'initialization' }
+Cogit >> allocateTrampolineOpcodes [
+
+	self allocateOpcodes: 160 bytecodes: 0
+]
+
 { #category : 'in-line cacheing' }
 Cogit >> allowEarlyPromotionToMegamorphicIC [
 	<inline: true>
@@ -3247,7 +3253,7 @@ Cogit >> assertValidICTable: icTable duringGC: duringGC [
 	| handler selector cogMethod first |
 	self assert: (objectRepresentation couldBeObject: icTable).
 	self assert: (objectMemory isNotForwarded: icTable).
-	self assert: (objectRepresentation isBytesNonImm: icTable).
+	self assert: (objectMemory isBytesNonImm: icTable).
 
 	handler := objectMemory
 		           fetchPointer: ICHandlerIndex
@@ -7515,28 +7521,30 @@ Cogit >> generateStackPointerCapture [
 Cogit >> generateTrampolines [
 	"Generate the run-time entries and exits at the base of the native code zone and update the base.
 	 Read the class-side method trampolines for documentation on the various trampolines"
+
 	<flag: #workingSet>
 	| methodZoneStart |
-	
 	methodZoneStart := methodZoneBase.
 	methodLabel address: methodZoneStart.
-	self allocateOpcodes: 80 bytecodes: 0.
+	self allocateTrampolineOpcodes.
 	hasYoungReferent := false.
-	
-	self 
-		enableCodeZoneWriteDuring: [ 	
+
+	self
+		enableCodeZoneWriteDuring: [
 			objectRepresentation maybeGenerateSelectorIndexDereferenceRoutine.
 			self generatePolymorphicSendTrampolines.
 			self generateSendTrampolines.
 			self generateMissAbortTrampolines.
 			objectRepresentation generateObjectRepresentationTrampolines.
 			self generateRunTimeTrampolines.
-			SistaVM ifTrue: [self generateSistaRuntime].
+			SistaVM ifTrue: [ self generateSistaRuntime ].
 			self generateEnilopmarts.
 			self generateTracingTrampolines.
-			self recordGeneratedRunTime: 'methodZoneBase' address: methodZoneBase]
-		flushingCacheWith: [ self flushICacheFrom: methodZoneStart asUnsignedInteger to: methodZoneBase asUnsignedInteger ].
-
+			self recordGeneratedRunTime: 'methodZoneBase' address: methodZoneBase ]
+		flushingCacheWith: [
+			self
+				flushICacheFrom: methodZoneStart asUnsignedInteger
+				to: methodZoneBase asUnsignedInteger ]
 ]
 
 { #category : 'compile abstract instructions' }
@@ -8735,12 +8743,13 @@ Cogit >> mapPrimitive: primitiveRoutine "<Symbol>" withIndexToUniqueAddress: pri
 	| uniqueAddress |
 
 	<doNotGenerate>
+	<flag: #seeGuille>
 
 	self assert: (primitiveRoutine isSymbol or: [primitiveRoutine isBlock]).
 
 	uniqueAddress := -1 - methodZoneBase - (primIndex * 4) - 16r1000 
 		bitAnd: self allButTopBitOfAddressSpaceMask.
-	
+	self methodZone effectiveLimit.
 	simulatedTrampolines
 		at: uniqueAddress
 		ifAbsentPut:
