@@ -807,24 +807,6 @@ Cogit class >> initializeErrorCodes [
 ]
 
 { #category : 'class initialization' }
-Cogit class >> initializeICTableConstants [
-
-	<flag: #workingSet>
-	ICHandlerIndex := 0.
-	ICSelectorIndex := 1.
-
-	ICCacheEntryStart := 2.
-	ICCacheTagOffset := 0.
-	ICCacheOperandOffset := 1.
-	ICCacheValueOffset := 2.
-	ICCacheEntrySlotCount := 3.
-	
-	ICCacheEntryCount := 6.
-
-	ICSlotCount := ICCacheEntryStart + (ICCacheEntrySlotCount * ICCacheEntryCount).
-]
-
-{ #category : 'class initialization' }
 Cogit class >> initializeMiscConstants [
 	super initializeMiscConstants.
 	Debug := InitializationOptions at: #Debug ifAbsent: [false].
@@ -1165,7 +1147,6 @@ Cogit class >> initializeWithOptions: optionsDictionary [
 	self initializeMiscConstants. "must precede other initialization."
 	self initializeErrorCodes.
 	self initializeCogMethodConstants.
-	self initializeICTableConstants.
 	self initializeBytecodeTable.
 	self initializeAnnotationConstants.
 	self initializeNumTrampolines.
@@ -5173,10 +5154,13 @@ Cogit >> compileEntry [
 		         genGetInlineCacheClassTagFrom: ReceiverResultReg
 		         into: TempReg
 		         forEntry: true.
-	objectRepresentation
-		genLoadSlot: objectMemory cacheTagSlotForMonomorphicallyLinkedSend
-		sourceReg: ClassReg
-		destReg: Extra0Reg.
+	self
+		MoveM32:
+			objectMemory cacheTagIndexForMonomorphicallyLinkedSend
+			* objectMemory wordSize + objectMemory baseHeaderSize
+		r: ClassReg
+		R: Extra0Reg.
+	self ZeroExtend32R: Extra0Reg R: Extra0Reg.
 	self CmpR: Extra0Reg R: TempReg.
 	self JumpNonZero: sendMiss.
 	noCheckEntry := self Label.
@@ -6623,14 +6607,6 @@ Cogit >> genPolymorphicSendTrampoline: numArgs [
 	<var: #jumpNext type: #'AbstractInstruction *'>
 	<var: #start type: #'AbstractInstruction *'>
 	| start jumpNext |
-	"REVIEW:
-	endCPICCase0 := self Label.
-	endCPICCase1 := self Label.
-	cPICEndOfCodeLabel := self Label.
-	firstCPICCaseOffset := endCPICCase0 address - methodZoneBase.
-	cPICEndOfCodeOffset := cPICEndOfCodeLabel address - methodZoneBase.
-	cPICCaseSize := endCPICCase1 address - endCPICCase0 address.
-	cPICEndSize := closedPICSize - (MaxCPICCases - 1 * cPICCaseSize + firstCPICCaseOffset)."
 	self zeroOpcodeIndex.
 
 	start := self Label.
@@ -6640,10 +6616,12 @@ Cogit >> genPolymorphicSendTrampoline: numArgs [
 		forEntry: false.
 
 	0 to: ICCacheEntryCount - 1 do: [ :i |
-		objectRepresentation
-			genLoadSlot: (objectMemory cacheTagSlotForICTableEntry: i)
-			sourceReg: ClassReg
-			destReg: Extra0Reg.
+		self
+			MoveM32:
+				(objectMemory cacheTagIndexForICTableEntry: i) * objectMemory wordSize
+				+ objectMemory baseHeaderSize
+			r: ClassReg
+			R: Extra0Reg.
 		self CmpR: Extra0Reg R: TempReg.
 		jumpNext := self JumpNonZero: 0.
 		objectRepresentation
@@ -6668,12 +6646,10 @@ Cogit >> genPolymorphicSendTrampoline: numArgs [
 		genPushRegisterArgsForPolymorphicSendTrampoline: numArgs
 		scratchReg: TempReg.
 	"Sends with a small number of arguments carry their count implicitly. Time to make it explicit"
-	numArgs <= self numRegArgs ifTrue: [
-		self MoveCq: numArgs R: SendNumArgsReg ].
+	numArgs <= self numRegArgs ifTrue: [ self MoveCq: numArgs R: SendNumArgsReg ].
 	^ self
 		  genTrampolineFor: #cePolymorphicSendMiss:receiver:numArgs:
-		  called:
-		  (self trampolineName: 'cePolymorphicSend' numArgs: numArgs)
+		  called: (self trampolineName: 'cePolymorphicSend' numArgs: numArgs)
 		  numArgs: 3
 		  arg: ClassReg
 		  arg: ReceiverResultReg

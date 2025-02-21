@@ -3,12 +3,11 @@ Class {
 	#superclass : 'SharedPool',
 	#classVars : [
 		'ICCacheEntryCount',
-		'ICCacheEntrySlotCount',
-		'ICCacheEntryStart',
 		'ICCacheOperandOffset',
 		'ICCacheTagOffset',
 		'ICCacheValueOffset',
 		'ICHandlerIndex',
+		'ICHeaderIndex',
 		'ICSelectorIndex',
 		'ICSlotCount'
 	],

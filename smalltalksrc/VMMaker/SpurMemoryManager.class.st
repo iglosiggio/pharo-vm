@@ -822,6 +822,28 @@ SpurMemoryManager class >> initializeCompactClassIndices [
 ]
 
 { #category : 'class initialization' }
+SpurMemoryManager class >> initializeICTableConstants [
+
+	<flag: #workingSet>
+	ICHeaderIndex := 0.
+	ICSelectorIndex := 1.
+	"First operand is in slot 2"
+	ICCacheOperandOffset := 2.
+
+	ICCacheEntryCount := 6.
+
+	ICHandlerIndex := ICSelectorIndex + ICCacheEntryCount + 1.
+
+	ICCacheTagOffset := ICHandlerIndex + 1.
+	self assert: (#( 4 8 ) includes: BytesPerWord).
+	ICCacheValueOffset := BytesPerWord = 8
+		                      ifTrue: [ ICCacheTagOffset + (ICCacheEntryCount / 2) ceiling ]
+		                      ifFalse: [ ICCacheTagOffset + ICCacheEntryCount ].
+
+	ICSlotCount := ICCacheValueOffset + ICCacheEntryCount
+]
+
+{ #category : 'class initialization' }
 SpurMemoryManager class >> initializeObjectHeaderConstants [
 
 	BytesPerWord ifNil: [ BytesPerWord := 4 ]. "May get called on fileIn, so supply default"
@@ -923,6 +945,7 @@ SpurMemoryManager class >> initializeWithOptions: optionsDictionary [
 	self initializeSpecialObjectIndices.
 	self initializeCompactClassIndices.
 	self initializePrimitiveErrorCodes.
+	self initializeICTableConstants.
 
 	SpurGenerationScavenger initialize
 ]
@@ -1887,7 +1910,7 @@ SpurMemoryManager >> allocateClassTable [
 	^ classTableRootOop
 ]
 
-{ #category : 'allocation' }
+{ #category : 'ic tables' }
 SpurMemoryManager >> allocateICTable: selectorOop withUnlinkedHandler: unlinkedTrampoline [
 
 	<flag: #workingSet>
@@ -2972,32 +2995,32 @@ SpurMemoryManager >> bytesPerOop [
 	self subclassResponsibility
 ]
 
-{ #category : 'ic table access' }
+{ #category : 'ic tables' }
 SpurMemoryManager >> cacheOperandSlotForICTableEntry: i [
 
 	<api>
-	^ ICCacheEntryStart + (ICCacheEntrySlotCount * i) + ICCacheOperandOffset
+	^ ICCacheOperandOffset + i
 ]
 
-{ #category : 'ic table access' }
-SpurMemoryManager >> cacheTagSlotForICTableEntry: i [
+{ #category : 'ic tables' }
+SpurMemoryManager >> cacheTagIndexForICTableEntry: i [
 
 	<api>
-	^ ICCacheEntryStart + (ICCacheEntrySlotCount * i) + ICCacheTagOffset
+	^ (ICCacheTagOffset * (BytesPerWord / 4)) + i
 ]
 
-{ #category : 'ic table access' }
-SpurMemoryManager >> cacheTagSlotForMonomorphicallyLinkedSend [
+{ #category : 'ic tables' }
+SpurMemoryManager >> cacheTagIndexForMonomorphicallyLinkedSend [
 
 	<api>
-	^ self cacheTagSlotForICTableEntry: 0
+	^ self cacheTagIndexForICTableEntry: 0
 ]
 
-{ #category : 'ic table access' }
+{ #category : 'ic tables' }
 SpurMemoryManager >> cacheValueSlotForICTableEntry: i [
 
 	<api>
-	^ ICCacheEntryStart + (ICCacheEntrySlotCount * i) + ICCacheValueOffset
+	^ ICCacheValueOffset + i
 ]
 
 { #category : 'obj stacks' }
@@ -5135,7 +5158,7 @@ SpurMemoryManager >> fetchByte: byteIndex ofObject: objOop [
 	^self byteAt: objOop + self baseHeaderSize + byteIndex
 ]
 
-{ #category : 'ic table access' }
+{ #category : 'ic tables' }
 SpurMemoryManager >> fetchCacheOperand: entryIndex ofTable: icTable [
 
 	<api>
@@ -5144,16 +5167,16 @@ SpurMemoryManager >> fetchCacheOperand: entryIndex ofTable: icTable [
 		ofObject: icTable
 ]
 
-{ #category : 'ic table access' }
+{ #category : 'ic tables' }
 SpurMemoryManager >> fetchCacheTag: entryIndex ofTable: icTable [
 
 	<api>
 	^ self
-		fetchPointer: (self cacheTagSlotForICTableEntry: entryIndex)
+		fetchLong32: (self cacheTagIndexForICTableEntry: entryIndex)
 		ofObject: icTable
 ]
 
-{ #category : 'ic table access' }
+{ #category : 'ic tables' }
 SpurMemoryManager >> fetchCacheValue: entryIndex ofTable: icTable [
 
 	<api>
@@ -5222,7 +5245,7 @@ SpurMemoryManager >> fetchFloat64: index ofObject: objOop [
 	^self float64At: objOop + self baseHeaderSize + (index << 3)
 ]
 
-{ #category : 'ic table access' }
+{ #category : 'ic tables' }
 SpurMemoryManager >> fetchHandlerOfTable: icTable [
 
 	<api>
@@ -5270,7 +5293,7 @@ SpurMemoryManager >> fetchPointer: fieldIndex ofObject: objOop [
 	^self unsignedLongAt: objOop + self baseHeaderSize + (fieldIndex << self shiftForWord)
 ]
 
-{ #category : 'ic table access' }
+{ #category : 'ic tables' }
 SpurMemoryManager >> fetchSelectorOfTable: icTable [
 
 	<api>
@@ -12856,7 +12879,7 @@ SpurMemoryManager >> storeByte: byteIndex ofObject: oop withValue: valueByte [
 	^self byteAt: oop + self baseHeaderSize + byteIndex put: valueByte
 ]
 
-{ #category : 'ic table access' }
+{ #category : 'ic tables' }
 SpurMemoryManager >> storeCacheOperand: entryIndex ofTable: icTable with: operand [
 
 	<api>
@@ -12866,17 +12889,17 @@ SpurMemoryManager >> storeCacheOperand: entryIndex ofTable: icTable with: operan
 		withValue: operand
 ]
 
-{ #category : 'ic table access' }
+{ #category : 'ic tables' }
 SpurMemoryManager >> storeCacheTag: entryIndex ofTable: icTable with: cacheTag [
 
 	<api>
 	self
-		storePointer: (self cacheTagSlotForICTableEntry: entryIndex)
+		storeLong32: (self cacheTagIndexForICTableEntry: entryIndex)
 		ofObject: icTable
 		withValue: cacheTag
 ]
 
-{ #category : 'ic table access' }
+{ #category : 'ic tables' }
 SpurMemoryManager >> storeCacheValue: entryIndex ofTable: icTable with: value [
 
 	<api>
@@ -12905,7 +12928,7 @@ SpurMemoryManager >> storeFloat64: index ofObject: objOop withValue: value [
 	^self float64At: objOop + self baseHeaderSize + (index << 3) put: value
 ]
 
-{ #category : 'ic table access' }
+{ #category : 'ic tables' }
 SpurMemoryManager >> storeHandlerOfTable: icTable with: aHandler [
 
 	<api>
@@ -13047,7 +13070,7 @@ SpurMemoryManager >> storePointerUnchecked: fieldIndex ofObject: objOop withValu
 		put: valuePointer
 ]
 
-{ #category : 'ic table access' }
+{ #category : 'ic tables' }
 SpurMemoryManager >> storeSelectorOfTable: icTable with: aSelector [
 
 	<api>
