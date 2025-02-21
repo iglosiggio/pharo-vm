@@ -5160,9 +5160,8 @@ Cogit >> compileEntry [
 		         into: TempReg
 		         forEntry: true.
 	self
-		MoveM32:
-			objectMemory cacheTagIndexForMonomorphicallyLinkedSend
-			* objectMemory wordSize + objectMemory baseHeaderSize
+		MoveM32: objectMemory cacheTagIndexForMonomorphicallyLinkedSend * 4
+			+ objectMemory baseHeaderSize
 		r: ClassReg
 		R: Extra0Reg.
 	self ZeroExtend32R: Extra0Reg R: Extra0Reg.
@@ -6623,7 +6622,7 @@ Cogit >> genPolymorphicSendTrampoline: numArgs [
 	0 to: ICCacheEntryCount - 1 do: [ :i |
 		self
 			MoveM32:
-				(objectMemory cacheTagIndexForICTableEntry: i) * objectMemory wordSize
+				(objectMemory cacheTagIndexForICTableEntry: i) * 4
 				+ objectMemory baseHeaderSize
 			r: ClassReg
 			R: Extra0Reg.
