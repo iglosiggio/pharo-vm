@@ -4276,6 +4276,18 @@ SpurMemoryManager >> coallesceFreeChunk: objOop [
 	^here
 ]
 
+{ #category : 'accessing' }
+SpurMemoryManager >> codeEnd [
+	<api>
+	^ self getMemoryMap codeZoneEnd
+]
+
+{ #category : 'accessing' }
+SpurMemoryManager >> codeStart [
+	<api>
+	^ self getMemoryMap codeZoneStart
+]
+
 { #category : 'object access' }
 SpurMemoryManager >> compactClassIndexOf: objOop [
 	<api>
