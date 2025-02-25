@@ -5962,8 +5962,7 @@ Cogit >> followForwardedMethods [
 	<option: #SpurObjectMemory>
 	<var: #cogMethod type: #'CogMethod *'>
 	<var: #cogMethod type: #'CogMethod *'>
-	| cogMethod freedPIC |
-	freedPIC := false.
+	| cogMethod |
 	cogMethod := self cCoerceSimple: methodZoneBase to: #'CogMethod *'.
 
 	self enableCodeZoneWriteDuring: [ 
@@ -5979,8 +5978,7 @@ Cogit >> followForwardedMethods [
 						(objectMemory followForwarded: cogMethod methodObject).
 					(objectMemory getMemoryMap isYoungObject: cogMethod methodObject) 
 						ifTrue: [ methodZone ensureInYoungReferrers: cogMethod ] ] ].
-			cogMethod := methodZone methodAfter: cogMethod ].
-		freedPIC ifTrue: [ self unlinkSendsToFree ] ]
+			cogMethod := methodZone methodAfter: cogMethod ] ]
 	flushingCacheWith: [  	
 		codeModified ifTrue: "After possibly updating inline caches we need to flush the icache."
 			[self flushICacheFrom: methodZoneBase asUnsignedInteger to: methodZone limitZony asUnsignedInteger]]
@@ -8555,14 +8553,14 @@ Cogit >> mapObjectReferencesInMachineCodeForBecome [
 	 refer to young as a result of the become operation.  Unlike incrementalGC
 	 or fullGC the reference from a Cog method to its methodObject *must not*
 	 change since the two are two halves of the same object."
-	| cogMethod hasYoungObj hasYoungObjPtr freedPIC |
+	| cogMethod hasYoungObj hasYoungObjPtr |
 	<var: #cogMethod type: #'CogMethod *'>
 	
 	self enableCodeZoneWriteDuring: [  
 	
 		hasYoungObj := false.
 		hasYoungObjPtr := (self addressOf: hasYoungObj put: [:val| hasYoungObj := val]) asInteger.
-		codeModified := freedPIC := false.
+		codeModified := false.
 		self mapObjectReferencesInGeneratedRuntime.
 		cogMethod := self cCoerceSimple: methodZoneBase to: #'CogMethod *'.
 		[cogMethod < methodZone limitZony] whileTrue:
@@ -8623,8 +8621,6 @@ Cogit >> mapObjectReferencesInMachineCodeForBecome [
 		 block could have removed a method and subsequently it could be added back, and b) we
 		 can not tolerate duplicates in the youngReferrers list."  
 		methodZone pruneYoungReferrers.
-		freedPIC ifTrue:
-			[self unlinkSendsToFree].
 	] flushingCacheWith: 	[ 		
 		codeModified ifTrue: "After updating oops in inline caches we need to flush the icache."
 			[self flushICacheFrom: codeBase asUnsignedInteger to: methodZone limitZony asUnsignedInteger] ]
@@ -11189,21 +11185,20 @@ Cogit >> unlinkSendsLinkedForInvalidClasses [
 	<flag: #review> "Should not modify code!"
 	<option: #SpurObjectMemory>
 	<var: #cogMethod type: #'CogMethod *'>
-	| cogMethod freedPIC |
+	| cogMethod |
 	methodZoneBase ifNil: [ ^ self ].
 
 	self
 		enableCodeZoneWriteDuring: [
 			cogMethod := self cCoerceSimple: methodZoneBase to: #'CogMethod *'.
-			codeModified := freedPIC := false.
+			codeModified := false.
 			[ cogMethod < methodZone limitZony ] whileTrue: [
 				cogMethod cmType = CMMethod ifTrue: [
 					self
 						mapFor: cogMethod
 						performUntil: #unlinkIfInvalidClassSend:pc:ignored:
 						arg: 0 ].
-				cogMethod := methodZone methodAfter: cogMethod ].
-			freedPIC ifTrue: [ self unlinkSendsToFree ] ]
+				cogMethod := methodZone methodAfter: cogMethod ] ]
 		flushingCacheWith: [
 			codeModified ifTrue: [ "After possibly updating inline caches we need to flush the icache."
 				self
@@ -11269,7 +11264,7 @@ Cogit >> unlinkSendsTo: targetMethodObject andFreeIf: freeIfTrue [
 	"Unlink all sends in cog methods to a particular target method.
 	 If targetMethodObject isn't actually a method (perhaps being
 	 used via invokeAsMethod) then there's nothing to do."
-	| cogMethod targetMethod freedPIC |
+	| cogMethod targetMethod |
 	<var: #cogMethod type: #'CogMethod *'>
 	<var: #targetMethod type: #'CogMethod *'>
 	((objectMemory isOopCompiledMethod: targetMethodObject)
@@ -11277,7 +11272,7 @@ Cogit >> unlinkSendsTo: targetMethodObject andFreeIf: freeIfTrue [
 		[^self].
 	targetMethod := coInterpreter cogMethodOf: targetMethodObject.
 	methodZoneBase ifNil: [^self].
-	codeModified := freedPIC := false.
+	codeModified := false.
 	cogMethod := self cCoerceSimple: methodZoneBase to: #'CogMethod *'.
 
 	self enableCodeZoneWriteDuring: [  
@@ -11288,11 +11283,10 @@ Cogit >> unlinkSendsTo: targetMethodObject andFreeIf: freeIfTrue [
 							 performUntil: #unlinkIfLinkedSend:pc:to:
 							 arg: targetMethod asInteger].
 				cogMethod := methodZone methodAfter: cogMethod].
-			freeIfTrue ifTrue: [self freeMethod: targetMethod].
-			freedPIC
-				ifTrue: [self unlinkSendsToFree]]  
-		flushingCacheWith: [ (freedPIC not and: [ codeModified ]) 
-			ifTrue: [ self flushICacheFrom: methodZoneBase asUnsignedInteger to: methodZone limitZony asUnsignedInteger ] ] 
+			freeIfTrue ifTrue: [self freeMethod: targetMethod]]
+		flushingCacheWith: [ 
+			codeModified ifTrue: [
+				self flushICacheFrom: methodZoneBase asUnsignedInteger to: methodZone limitZony asUnsignedInteger ] ] 
 		
 ]
 
