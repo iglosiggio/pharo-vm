@@ -223,7 +223,7 @@ VMInlineCachingTest >> setUp [
 { #category : 'running' }
 VMInlineCachingTest >> setUpClasses [
 	"This code sets up seven classes and seven instances.
-	 Each class implements value, value:value: and value:value:value: returning either 0 or 1"
+	 Each class implements the selector under test returning its own class id"
 
 	| classCount |
 	classCount := ICCacheEntryCount + 1.
