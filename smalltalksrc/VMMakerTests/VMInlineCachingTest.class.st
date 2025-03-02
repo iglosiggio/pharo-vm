@@ -82,7 +82,7 @@ VMInlineCachingTest >> cacheValues [
 	^ result
 ]
 
-{ #category : 'as yet unclassified' }
+{ #category : 'accessing' }
 VMInlineCachingTest >> cogMethodForClass: classID [
 
 	^ cogit cog: (self methodForClass: classID) selector: oopSelector
@@ -148,7 +148,7 @@ VMInlineCachingTest >> installSelector: aSelectorOop method: aMethodOop inMethod
 		withValue: aMethodOop
 ]
 
-{ #category : 'as yet unclassified' }
+{ #category : 'accessing' }
 VMInlineCachingTest >> methodForClass: classID [
 
 	^ classMethodOops at: classID
