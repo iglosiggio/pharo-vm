@@ -40,7 +40,7 @@ VMInlineCachingTest class >> testParameters [
 	^ super testParameters * self argCountParameters
 ]
 
-{ #category : 'running' }
+{ #category : 'accessing' }
 VMInlineCachingTest >> argCount: anArgumentCount [
 
 	argCount := anArgumentCount
@@ -88,7 +88,7 @@ VMInlineCachingTest >> cogMethodForClass: classID [
 	^ cogit cog: (self methodForClass: classID) selector: oopSelector
 ]
 
-{ #category : 'running' }
+{ #category : 'helpers' }
 VMInlineCachingTest >> createSimpleClass [
 
 	| class |
@@ -104,13 +104,13 @@ VMInlineCachingTest >> createSimpleClass [
 	^ class
 ]
 
-{ #category : 'tests - metadata' }
+{ #category : 'running' }
 VMInlineCachingTest >> initialCodeSize [
 
 	^ 16 * 1024
 ]
 
-{ #category : 'running' }
+{ #category : 'helpers' }
 VMInlineCachingTest >> installMethodInto: aMethodDictOop returning: anOop [
 
 	| method |
@@ -133,7 +133,7 @@ VMInlineCachingTest >> installMethodInto: aMethodDictOop returning: anOop [
 	^ method.
 ]
 
-{ #category : 'running' }
+{ #category : 'helpers' }
 VMInlineCachingTest >> installSelector: aSelectorOop method: aMethodOop inMethodDictionary: aMethodDictionary [
 	
 	| anArrayOfMethods |
@@ -154,35 +154,35 @@ VMInlineCachingTest >> methodForClass: classID [
 	^ classMethodOops at: classID
 ]
 
-{ #category : 'tests - metadata' }
+{ #category : 'methods under test' }
 VMInlineCachingTest >> send0To: anObject [
 
 	<compilerOptions: #( #- #optionOptimiseSpecialSends )>
 	^ anObject value
 ]
 
-{ #category : 'tests - metadata' }
+{ #category : 'methods under test' }
 VMInlineCachingTest >> send1To: anObject [
 
 	<compilerOptions: #( #- #optionOptimiseSpecialSends )>
 	^ anObject value: 0
 ]
 
-{ #category : 'tests - metadata' }
+{ #category : 'methods under test' }
 VMInlineCachingTest >> send2To: anObject [
 
 	<compilerOptions: #( #- #optionOptimiseSpecialSends )>
 	^ anObject value: 0 value: 0
 ]
 
-{ #category : 'tests - metadata' }
+{ #category : 'methods under test' }
 VMInlineCachingTest >> send3To: anObject [
 
 	<compilerOptions: #( #- #optionOptimiseSpecialSends )>
 	^ anObject value: 0 value: 0 value: 0
 ]
 
-{ #category : 'running' }
+{ #category : 'helpers' }
 VMInlineCachingTest >> setArrayClassIntoClassTable [
 	| aClass |
 	aClass := self
@@ -195,7 +195,7 @@ VMInlineCachingTest >> setArrayClassIntoClassTable [
 		withValue: aClass
 ]
 
-{ #category : 'running' }
+{ #category : 'helpers' }
 VMInlineCachingTest >> setMessageClassIntoClassTable [
 	| aClass |
 	aClass := self
@@ -322,7 +322,7 @@ VMInlineCachingTest >> setUpStack [
 	cogit setCFramePointer: interpreter rumpCStackAddress
 ]
 
-{ #category : 'tests - metadata' }
+{ #category : 'tests - doesNotUnderstand:' }
 VMInlineCachingTest >> testInlineCacheCanExecuteCoggedDoesNotUnderstandMethods [
 
 	| dnuSelector expectedReturnValue class methodDict methodOop methodCog |
@@ -370,7 +370,7 @@ VMInlineCachingTest >> testInlineCacheCanExecuteCoggedDoesNotUnderstandMethods [
 		equals: expectedReturnValue
 ]
 
-{ #category : 'tests - metadata' }
+{ #category : 'tests - interpreted methods' }
 VMInlineCachingTest >> testInlineCacheCanLinkAgainstDoesNotUnderstand [
 
 	| dnuSelector class methodDict methodOop methodCog |
@@ -421,7 +421,7 @@ VMInlineCachingTest >> testInlineCacheCanLinkAgainstDoesNotUnderstand [
 		equals: (cogit polymorphicSendMNUFor: argCount)
 ]
 
-{ #category : 'tests - metadata' }
+{ #category : 'tests - interpreted methods' }
 VMInlineCachingTest >> testInlineCacheCanLinkAgainstInterpretedMethods [
 
 	machineSimulator arg0RegisterValue: (instances at: 1).
@@ -447,7 +447,7 @@ VMInlineCachingTest >> testInlineCacheCanLinkAgainstInterpretedMethods [
 		equals: (cogit polymorphicSendInterpretFor: argCount)
 ]
 
-{ #category : 'tests - metadata' }
+{ #category : 'tests - interpreted methods' }
 VMInlineCachingTest >> testInlineCacheCanUpdateACachedInterpretedMethodAfterItWasCogged [
 
 	| method methodCog |
@@ -484,7 +484,7 @@ VMInlineCachingTest >> testInlineCacheCanUpdateACachedInterpretedMethodAfterItWa
 		equals: methodCog address + cogit noCheckEntryOffset
 ]
 
-{ #category : 'tests - metadata' }
+{ #category : 'tests - state transitions' }
 VMInlineCachingTest >> testInlineCacheStateMachineProperlyGoesThroughAllStates [
 
 	| doCall expectedCacheTags monomorphicallyLinkedCogMethod |
@@ -538,7 +538,7 @@ VMInlineCachingTest >> testInlineCacheStateMachineProperlyGoesThroughAllStates [
 	self assert: self cacheTags equals: expectedCacheTags
 ]
 
-{ #category : 'tests - metadata' }
+{ #category : 'tests - state transitions' }
 VMInlineCachingTest >> testMonomorphicallyLinkedTrasitionsToPolymorphic [
 
 	| method0Cog method1Cog |
@@ -585,7 +585,7 @@ VMInlineCachingTest >> testMonomorphicallyLinkedTrasitionsToPolymorphic [
 			0 }
 ]
 
-{ #category : 'tests - metadata' }
+{ #category : 'tests - state transitions' }
 VMInlineCachingTest >> testPolymorphicallyLinkedSendCanBeExtended [
 
 	| method0Cog method1Cog method2Cog |
@@ -641,7 +641,7 @@ VMInlineCachingTest >> testPolymorphicallyLinkedSendCanBeExtended [
 			0 }
 ]
 
-{ #category : 'tests - metadata' }
+{ #category : 'tests - state transitions' }
 VMInlineCachingTest >> testPolymorphicallyLinkedSendFullyExtendedTransitionsToMegamorphic [
 
 	| linkedCogMethods megamorphicStub |
@@ -690,14 +690,14 @@ VMInlineCachingTest >> testPolymorphicallyLinkedSendFullyExtendedTransitionsToMe
 	self assert: self cacheValues equals: { 0. 0. 0. 0. 0. 0 }
 ]
 
-{ #category : 'tests - metadata' }
+{ #category : 'tests - meta' }
 VMInlineCachingTest >> testTheCallingConventionUnderTestDidNotChange [
 
 	"This assertion is here in order to have a test that fails if we extend the number of special-cased arities"
 	self assert: sendTrampolines size equals: 4.
 ]
 
-{ #category : 'tests - metadata' }
+{ #category : 'tests - state transitions' }
 VMInlineCachingTest >> testUnlinkedSendRunsUnlinkedTrampoline [
 
 	self
@@ -709,7 +709,7 @@ VMInlineCachingTest >> testUnlinkedSendRunsUnlinkedTrampoline [
 		equals: (sendTrampolines at: argCount)
 ]
 
-{ #category : 'tests - metadata' }
+{ #category : 'tests - state transitions' }
 VMInlineCachingTest >> testUnlinkedTrampolineTrasitionsToMonomorphic [
 
 	| methodCog |
