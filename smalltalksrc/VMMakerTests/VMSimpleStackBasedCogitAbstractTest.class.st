@@ -46,8 +46,8 @@ VMSimpleStackBasedCogitAbstractTest class >> imageFormatParameters [
 VMSimpleStackBasedCogitAbstractTest class >> wordSize32Parameters [
 
 	^ ParametrizedTestMatrix new
-		"addCase: { #ISA -> #'IA32'. #wordSize -> 4};
-		addCase: { #ISA -> #'ARMv5'. #wordSize -> 4};"
+		addCase: { #ISA -> #'IA32'. #wordSize -> 4};
+		addCase: { #ISA -> #'ARMv5'. #wordSize -> 4};
 		yourself
 ]
 

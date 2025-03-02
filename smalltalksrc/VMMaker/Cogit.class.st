@@ -11009,7 +11009,7 @@ Cogit >> transitionToMonomorphicSend: icTable cacheTag: classTag cogMethod: cogM
 	entryOffset := isSuper = 0
 		               ifTrue: [ cmEntryOffset ]
 		               ifFalse: [ cmNoCheckEntryOffset ].
-	handler := cogMethod asUnsignedInteger + entryOffset.
+	handler := cogMethod address + entryOffset.
 	objectMemory storeHandlerOfTable: icTable with: handler.
 	objectMemory clearAllICTableEntries: icTable.
 	objectMemory storeCacheTag: 0 ofTable: icTable with: classTag

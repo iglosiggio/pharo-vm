@@ -699,22 +699,14 @@ CogVMSimulator >> imageNameSize [
 
 { #category : 'rump c stack' }
 CogVMSimulator >> inMemoryCFramePointerAddress [
-	^self rumpCStackAddress - 16
+
+	^ self rumpCStackAddress + 8
 ]
 
 { #category : 'initialization' }
 CogVMSimulator >> inMemoryCStackPointerAddress [
-	^self rumpCStackAddress - 8
-]
 
-{ #category : 'rump c stack' }
-CogVMSimulator >> inMemoryStackLimitAddress [
-	^self rumpCStackAddress - 24
-]
-
-{ #category : 'rump c stack' }
-CogVMSimulator >> inMemoryVMOwnerLockAddress [
-	^self rumpCStackAddress - 48
+	^ self rumpCStackAddress
 ]
 
 { #category : 'interpreter shell' }
@@ -1688,8 +1680,10 @@ CogVMSimulator >> rewriteMethodCacheEntryForExternalPrimitiveToFunction: localPr
 { #category : 'rump c stack' }
 CogVMSimulator >> rumpCStackAddress [
 
-	rumpCStackBase ifNil: [ rumpCStackBase := memoryManager allocate: self rumpCStackSize  ].
- 	^ rumpCStackBase + self rumpCStackSize
+	rumpCStackBase ifNil: [
+		rumpCStackBase := memoryManager allocate:
+			                  self rumpCStackSize + self rumpCStackStateSize ].
+	^ rumpCStackBase + self rumpCStackSize
 ]
 
 { #category : 'rump c stack' }
@@ -1701,6 +1695,15 @@ CogVMSimulator >> rumpCStackSize [
 	 because we need some activity to count in order to implement the ioMSecs
 	 routine and the stackLimit check is the ideal one."
 	^ RumpCStackSize
+]
+
+{ #category : 'rump c stack' }
+CogVMSimulator >> rumpCStackStateSize [
+
+	"The rump C stack has:
+	 - A stack pointer (offset 0)
+	 - A frame pointer (offset 8)"
+	^ 16
 ]
 
 { #category : 'testing' }

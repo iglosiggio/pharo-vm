@@ -1663,14 +1663,16 @@ CoInterpreter >> ceSendFromInLineCacheMiss2: selector numArgs: numArgs receiver:
 ]
 
 { #category : 'trampolines' }
-CoInterpreter >> ceSendFromInLineCacheMiss: cogMethodOrPIC [
+CoInterpreter >> ceSendFromInLineCacheMiss: cogMethodOrPICAddress [
 	"Send from an Megamorphic IC when the first-level method lookup probe has failed,
 	 or to continue when PIC creation has failed (e.g. because we're out of code space),
 	 or when a send has failed due to a forwarded receiver."
 
 	<api>
+	<var: #cogMethodOrPICAddress type: #'CogMethod *'>
 	<var: #cogMethodOrPIC type: #'CogMethod *'>
-	| numArgs rcvr classTag classObj errSelIdx |
+	| cogMethodOrPIC numArgs rcvr classTag classObj errSelIdx |
+	cogMethodOrPIC := self cCoerceSimple: cogMethodOrPICAddress to: #'CogMethod *'.
 	numArgs := cogMethodOrPIC cmNumArgs.
 	rcvr := self stackValue: numArgs + 1. "skip return pc"
 	self assert: (objectMemory addressCouldBeOop: rcvr).
@@ -3080,6 +3082,13 @@ CoInterpreter >> handleUnlinkedSendFor: icTable to: receiver isSuper: isSuper cl
 
 	(self maybeMethodHasCogMethod: newMethod) ifFalse: [ "
 		Method has no cog method, transfer control to the interpreter"
+		cogit transitionToPolymorphicSend: icTable numArgs: numArgs.
+		cogit
+			configurePolymorphicSendCase: icTable
+			entryIndex: 0
+			cacheTag: classTag
+			operand: newMethod
+			value: (cogit polymorphicSendInterpretFor: numArgs).
 		instructionPointer := self popStack.
 		self interpretMethodFromMachineCode.
 		self unreachable ].
