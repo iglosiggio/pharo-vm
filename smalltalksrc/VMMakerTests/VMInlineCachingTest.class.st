@@ -3,7 +3,6 @@ Class {
 	#superclass : 'VMStackToRegisterMappingCogitTest',
 	#instVars : [
 		'argCount',
-		'sendTrampolines',
 		'classes',
 		'classMethodOops',
 		'instances',
@@ -212,9 +211,7 @@ VMInlineCachingTest >> setUp [
 	self
 		setUpStack;
 		setUpMethods;
-		setUpClasses.
-	"FIXME: Ugly and breaks encapsulation"
-	sendTrampolines := cogit instVarNamed: #ordinarySendTrampolines
+		setUpClasses
 ]
 
 { #category : 'running' }
@@ -778,7 +775,7 @@ VMInlineCachingTest >> testPolymorphicallyLinkedSendFullyExtendedTransitionsToMe
 VMInlineCachingTest >> testTheCallingConventionUnderTestDidNotChange [
 
 	"This assertion is here in order to have a test that fails if we extend the number of special-cased arities"
-	self assert: sendTrampolines size equals: 4.
+	self assert: cogit numRegArgs equals: 2.
 ]
 
 { #category : 'tests - early megamorphic promotion' }
@@ -803,6 +800,9 @@ VMInlineCachingTest >> testUnlinkedLinkedSendTransitionsToMonomorphicEvenForMega
 
 { #category : 'tests - state transitions' }
 VMInlineCachingTest >> testUnlinkedSendRunsUnlinkedTrampoline [
+
+	| sendTrampolines |
+	sendTrampolines := cogit instVarNamed: #ordinarySendTrampolines.
 
 	self
 		runFrom: senderCogMethod address + cogit noCheckEntryOffset
