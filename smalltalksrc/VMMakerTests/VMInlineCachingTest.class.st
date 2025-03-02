@@ -46,40 +46,25 @@ VMInlineCachingTest >> argCount: anArgumentCount [
 	argCount := anArgumentCount
 ]
 
-{ #category : 'as yet unclassified' }
+{ #category : 'accessing' }
 VMInlineCachingTest >> cacheOperands [
 
-	| result |
-	result := Array new: ICCacheEntryCount.
-	1 to: ICCacheEntryCount do: [ :i |
-		| cacheTag |
-		cacheTag := memory fetchCacheOperand: i - 1 ofTable: icTable.
-		result at: i put: cacheTag ].
-	^ result
+	^ (1 to: ICCacheEntryCount) collect: [ :i |
+		  memory fetchCacheOperand: i - 1 ofTable: icTable ]
 ]
 
-{ #category : 'as yet unclassified' }
+{ #category : 'accessing' }
 VMInlineCachingTest >> cacheTags [
 
-	| result |
-	result := Array new: ICCacheEntryCount.
-	1 to: ICCacheEntryCount do: [ :i |
-		| cacheTag |
-		cacheTag := memory fetchCacheTag: i - 1 ofTable: icTable.
-		result at: i put: cacheTag ].
-	^ result
+	^ (1 to: ICCacheEntryCount) collect: [ :i |
+		  memory fetchCacheTag: i - 1 ofTable: icTable ]
 ]
 
-{ #category : 'as yet unclassified' }
+{ #category : 'accessing' }
 VMInlineCachingTest >> cacheValues [
 
-	| result |
-	result := Array new: ICCacheEntryCount.
-	1 to: ICCacheEntryCount do: [ :i |
-		| cacheTag |
-		cacheTag := memory fetchCacheValue: i - 1 ofTable: icTable.
-		result at: i put: cacheTag ].
-	^ result
+	^ (1 to: ICCacheEntryCount) collect: [ :i |
+		  memory fetchCacheValue: i - 1 ofTable: icTable ]
 ]
 
 { #category : 'accessing' }
