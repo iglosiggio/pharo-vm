@@ -10,11 +10,8 @@ Class {
 		'icTable',
 		'cacheTags',
 		'oopMethod',
-		'cogMethod',
-		'oopSelector'
-	],
-	#classVars : [
-		'IsSendCall'
+		'oopSelector',
+		'senderCogMethod'
 	],
 	#pools : [
 		'CogMethodConstants',
@@ -282,10 +279,10 @@ VMInlineCachingTest >> setUpMethods [
 	| selector |
 	selector := #( #send0To: #send1To: #send2To: #send3To: ) at: argCount + 1.
 	oopMethod := self createMethodOopFromHostMethod: self class >> selector.
-	cogMethod := cogit cog: oopMethod selector: memory nilObject.
+	senderCogMethod := cogit cog: oopMethod selector: memory nilObject.
 	oopSelector := memory fetchPointer: 1 ofObject: oopMethod.
 	memory hashBitsOf: oopSelector.
-	cogit mapFor: cogMethod do: [ :annotation :mcpc |
+	cogit mapFor: senderCogMethod do: [ :annotation :mcpc |
 		(cogit isSendAnnotation: annotation)
 			ifTrue: [
 				icTable := cogit fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
@@ -348,7 +345,7 @@ VMInlineCachingTest >> testInlineCacheCanExecuteCoggedDoesNotUnderstandMethods [
 	callerAddress := cogit simulatedAddressFor: [ self fail ].
 	machineSimulator arg0RegisterValue: (memory instantiateClass: class).
 	self prepareCall.
-	self runUntilReturnFrom: cogMethod address + cogit noCheckEntryOffset.
+	self runUntilReturnFrom: senderCogMethod address + cogit noCheckEntryOffset.
 
 	self
 		assert: machineSimulator receiverRegisterValue
@@ -386,7 +383,7 @@ VMInlineCachingTest >> testInlineCacheCanLinkAgainstDoesNotUnderstand [
 
 	machineSimulator arg0RegisterValue: (memory instantiateClass: class).
 	self
-		runFrom: cogMethod address + cogit noCheckEntryOffset
+		runFrom: senderCogMethod address + cogit noCheckEntryOffset
 		until: methodCog address + cogit noCheckEntryOffset.
 
 	self
@@ -412,7 +409,7 @@ VMInlineCachingTest >> testInlineCacheCanLinkAgainstInterpretedMethods [
 	machineSimulator arg0RegisterValue: (instances at: 1).
 	[
 		interpreter sigset: nil jmp: 0.
-		self runFrom: cogMethod address + cogit noCheckEntryOffset until: 0.
+		self runFrom: senderCogMethod address + cogit noCheckEntryOffset until: 0.
 		self fail ]
 			on: ReenterInterpreter
 			do: [ ].
@@ -449,7 +446,7 @@ VMInlineCachingTest >> testInlineCacheCanUpdateACachedInterpretedMethodAfterItWa
 		value: (cogit polymorphicSendInterpretFor: argCount).
 
 	self
-		runFrom: cogMethod address + cogit noCheckEntryOffset
+		runFrom: senderCogMethod address + cogit noCheckEntryOffset
 		until: methodCog address + cogit noCheckEntryOffset.
 
 	self
@@ -477,7 +474,7 @@ VMInlineCachingTest >> testInlineCacheStateMachineProperlyGoesThroughAllStates [
 	doCall := [ :i |
 	          machineSimulator arg0RegisterValue: (instances at: i).
 	          self prepareCall.
-	          self runUntilReturnFrom: cogMethod address + cogit noCheckEntryOffset ].
+	          self runUntilReturnFrom: senderCogMethod address + cogit noCheckEntryOffset ].
 
 	expectedCacheTags := Array new: 6 withAll: memory illegalClassTag.
 
@@ -523,6 +520,58 @@ VMInlineCachingTest >> testInlineCacheStateMachineProperlyGoesThroughAllStates [
 	self assert: self cacheTags equals: expectedCacheTags
 ]
 
+{ #category : 'test - cache hits' }
+VMInlineCachingTest >> testMonomorphicCacheHit [
+
+	| methodCog |
+	methodCog := self cogMethodForClass: 1.
+
+	cogit
+		transitionToMonomorphicSend: icTable
+		cacheTag: (cacheTags at: 1)
+		cogMethod: methodCog
+		isSuper: 0.
+
+	machineSimulator arg0RegisterValue: (instances at: 1).
+	"Run up to the check"
+	self
+		runFrom: senderCogMethod address + cogit noCheckEntryOffset
+		until: methodCog address + cogit entryOffset.
+	self
+		assert: machineSimulator instructionPointerRegisterValue
+		equals: methodCog address + cogit entryOffset.
+
+	"Then run after the check, that signals a hit"
+	self
+		runFrom: methodCog address + cogit entryOffset
+		until: methodCog address + cogit noCheckEntryOffset.
+	self
+		assert: machineSimulator instructionPointerRegisterValue
+		equals: methodCog address + cogit noCheckEntryOffset
+]
+
+{ #category : 'tests - early megamorphic promotion' }
+VMInlineCachingTest >> testMonomorphicallyLinkedSendTransitionsToMegamorphicForMegamorphicSelectors [
+
+	| methodCog  megamorphicStub |
+	methodCog := self cogMethodForClass: 1.
+	megamorphicStub := cogit cogOpenPICSelector: oopSelector numArgs: argCount.
+
+	cogit transitionToMonomorphicSend: icTable cacheTag: (cacheTags at: 1) cogMethod: methodCog isSuper: 0.
+
+	machineSimulator arg0RegisterValue: (instances at: 2).
+	self
+		runFrom: senderCogMethod address + cogit noCheckEntryOffset
+		until: megamorphicStub address + cogit entryOffset.
+
+	self
+		assert: machineSimulator instructionPointerRegisterValue
+		equals: megamorphicStub address + cogit entryOffset.
+	self
+		assert: (memory fetchHandlerOfTable: icTable)
+		equals: megamorphicStub address + cogit entryOffset
+]
+
 { #category : 'tests - state transitions' }
 VMInlineCachingTest >> testMonomorphicallyLinkedTrasitionsToPolymorphic [
 
@@ -538,7 +587,7 @@ VMInlineCachingTest >> testMonomorphicallyLinkedTrasitionsToPolymorphic [
 
 	machineSimulator arg0RegisterValue: (instances at: 2).
 	self
-		runFrom: cogMethod address + cogit noCheckEntryOffset
+		runFrom: senderCogMethod address + cogit noCheckEntryOffset
 		until: method1Cog address + cogit noCheckEntryOffset.
 
 	self
@@ -570,6 +619,56 @@ VMInlineCachingTest >> testMonomorphicallyLinkedTrasitionsToPolymorphic [
 			0 }
 ]
 
+{ #category : 'tests - early megamorphic promotion' }
+VMInlineCachingTest >> testPolimorphicallyLinkedSendIsExtendedForMegamorphicSelectors [
+
+	| methodCog  megamorphicStub |
+	methodCog := self cogMethodForClass: 1.
+	megamorphicStub := cogit cogOpenPICSelector: oopSelector numArgs: argCount.
+
+	cogit transitionToPolymorphicSend: icTable numArgs: argCount.
+
+	machineSimulator arg0RegisterValue: (instances at: 1).
+	self
+		runFrom: senderCogMethod address + cogit noCheckEntryOffset
+		until: methodCog address + cogit noCheckEntryOffset.
+
+	self
+		assert: machineSimulator instructionPointerRegisterValue
+		equals: methodCog address + cogit noCheckEntryOffset.
+	self
+		assert: (memory fetchHandlerOfTable: icTable)
+		equals: (cogit polymorphicSendFor: argCount)
+]
+
+{ #category : 'test - cache hits' }
+VMInlineCachingTest >> testPolymorphicCacheHit [
+
+	| methods |
+	methods := (1 to: ICCacheEntryCount) collect: [ :i |
+		self cogMethodForClass: i ].
+
+	cogit transitionToPolymorphicSend: icTable numArgs: argCount.
+	1 to: ICCacheEntryCount do: [ :i |
+		cogit
+			configurePolymorphicSendCase: icTable
+			entryIndex: i - 1
+			cacheTag: (cacheTags at: i)
+			operand: (self methodForClass: i)
+			value: (methods at: i) address + cogit noCheckEntryOffset ].
+
+	1 to: ICCacheEntryCount do: [ :i |
+		| method |
+		method := methods at: i.
+		machineSimulator arg0RegisterValue: (instances at: i).
+		self
+			runFrom: senderCogMethod address + cogit noCheckEntryOffset
+			until: method address + cogit noCheckEntryOffset.
+		self
+			assert: machineSimulator instructionPointerRegisterValue
+			equals: method address + cogit noCheckEntryOffset ]
+]
+
 { #category : 'tests - state transitions' }
 VMInlineCachingTest >> testPolymorphicallyLinkedSendCanBeExtended [
 
@@ -594,7 +693,7 @@ VMInlineCachingTest >> testPolymorphicallyLinkedSendCanBeExtended [
 
 	machineSimulator arg0RegisterValue: (instances at: 3).
 	self
-		runFrom: cogMethod address + cogit noCheckEntryOffset
+		runFrom: senderCogMethod address + cogit noCheckEntryOffset
 		until: method2Cog address + cogit noCheckEntryOffset.
 
 	self
@@ -649,7 +748,7 @@ VMInlineCachingTest >> testPolymorphicallyLinkedSendFullyExtendedTransitionsToMe
 		interpreter inMemoryCStackPointerAddress hex.
 		(memory long64At: interpreter inMemoryCStackPointerAddress) hex }.
 	self
-		runFrom: cogMethod address + cogit noCheckEntryOffset
+		runFrom: senderCogMethod address + cogit noCheckEntryOffset
 		until: (linkedCogMethods at: 7) address + cogit noCheckEntryOffset.
 
 	self
@@ -682,11 +781,31 @@ VMInlineCachingTest >> testTheCallingConventionUnderTestDidNotChange [
 	self assert: sendTrampolines size equals: 4.
 ]
 
+{ #category : 'tests - early megamorphic promotion' }
+VMInlineCachingTest >> testUnlinkedLinkedSendTransitionsToMonomorphicEvenForMegamorphicSelectors [
+
+	| methodCog |
+	methodCog := self cogMethodForClass: 1.
+	cogit cogOpenPICSelector: oopSelector numArgs: argCount.
+
+	machineSimulator arg0RegisterValue: (instances at: 1).
+	self
+		runFrom: senderCogMethod address + cogit noCheckEntryOffset
+		until: methodCog address + cogit noCheckEntryOffset.
+
+	self
+		assert: machineSimulator instructionPointerRegisterValue
+		equals: methodCog address + cogit noCheckEntryOffset.
+	self
+		assert: (memory fetchHandlerOfTable: icTable)
+		equals: methodCog address + cogit entryOffset
+]
+
 { #category : 'tests - state transitions' }
 VMInlineCachingTest >> testUnlinkedSendRunsUnlinkedTrampoline [
 
 	self
-		runFrom: cogMethod address + cogit noCheckEntryOffset
+		runFrom: senderCogMethod address + cogit noCheckEntryOffset
 		until: (sendTrampolines at: argCount).
 
 	self
@@ -702,7 +821,7 @@ VMInlineCachingTest >> testUnlinkedTrampolineTrasitionsToMonomorphic [
 
 	machineSimulator arg0RegisterValue: (instances at: 1).
 	self
-		runFrom: cogMethod address + cogit noCheckEntryOffset
+		runFrom: senderCogMethod address + cogit noCheckEntryOffset
 		until: methodCog address + cogit noCheckEntryOffset.
 
 	self
