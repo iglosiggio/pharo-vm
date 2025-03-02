@@ -47,37 +47,37 @@ VMInlineCachingTest >> argCount: anArgumentCount [
 ]
 
 { #category : 'as yet unclassified' }
-VMInlineCachingTest >> cacheOperandsFor: anICTableOop [
+VMInlineCachingTest >> cacheOperands [
 
 	| result |
 	result := Array new: ICCacheEntryCount.
 	1 to: ICCacheEntryCount do: [ :i |
 		| cacheTag |
-		cacheTag := memory fetchCacheOperand: i - 1 ofTable: anICTableOop.
+		cacheTag := memory fetchCacheOperand: i - 1 ofTable: icTable.
 		result at: i put: cacheTag ].
 	^ result
 ]
 
 { #category : 'as yet unclassified' }
-VMInlineCachingTest >> cacheTagsFor: anICTableOop [
+VMInlineCachingTest >> cacheTags [
 
 	| result |
 	result := Array new: ICCacheEntryCount.
 	1 to: ICCacheEntryCount do: [ :i |
 		| cacheTag |
-		cacheTag := memory fetchCacheTag: i - 1 ofTable: anICTableOop.
+		cacheTag := memory fetchCacheTag: i - 1 ofTable: icTable.
 		result at: i put: cacheTag ].
 	^ result
 ]
 
 { #category : 'as yet unclassified' }
-VMInlineCachingTest >> cacheValuesFor: anICTableOop [
+VMInlineCachingTest >> cacheValues [
 
 	| result |
 	result := Array new: ICCacheEntryCount.
 	1 to: ICCacheEntryCount do: [ :i |
 		| cacheTag |
-		cacheTag := memory fetchCacheValue: i - 1 ofTable: anICTableOop.
+		cacheTag := memory fetchCacheValue: i - 1 ofTable: icTable.
 		result at: i put: cacheTag ].
 	^ result
 ]
@@ -111,7 +111,7 @@ VMInlineCachingTest >> initialCodeSize [
 ]
 
 { #category : 'running' }
-VMInlineCachingTest >> installMethodInto: aMethodDictOop classID: classID [
+VMInlineCachingTest >> installMethodInto: aMethodDictOop returning: anOop [
 
 	| method |
 	method := methodBuilder
@@ -122,7 +122,7 @@ VMInlineCachingTest >> installMethodInto: aMethodDictOop classID: classID [
 			16r20 "pushConstant: 0 (first literal)".
 			16r5C "returnTop" };
 		literals: {
-			(memory integerObjectOf: classID). "Literal to load"
+			anOop. "Literal to load"
 			oopSelector. "Method selector"
 			memory nilObject "#className -> Class association" };
 		buildMethod.
@@ -130,8 +130,7 @@ VMInlineCachingTest >> installMethodInto: aMethodDictOop classID: classID [
 		installSelector: oopSelector
 		method: method
 		inMethodDictionary: aMethodDictOop.
-
-	classMethodOops at: classID put: method
+	^ method.
 ]
 
 { #category : 'running' }
@@ -247,13 +246,16 @@ VMInlineCachingTest >> setUpClasses [
 	"Create and fill all the classes"
 	classMethodOops := Array new: classCount.
 	classes := (1 to: classCount) collect: [ :i |
-		           | class methodDict |
-		           class := self createSimpleClass.
-		           methodDict := memory
-			                         fetchPointer: MethodDictionaryIndex
-			                         ofObject: class.
-		           self installMethodInto: methodDict classID: i.
-		           class ].
+		| class methodDict method |
+		class := self createSimpleClass.
+		methodDict := memory
+			fetchPointer: MethodDictionaryIndex
+			ofObject: class.
+		method := self
+			installMethodInto: methodDict
+			returning: (memory integerObjectOf: i).
+		classMethodOops at: i put: method.
+		class ].
 
 	"Instance each class"
 	instances := classes collect: [ :class | memory instantiateClass: class ].
@@ -505,7 +507,7 @@ VMInlineCachingTest >> testInlineCacheStateMachineProperlyGoesThroughAllStates [
 	self
 		assert: (memory fetchHandlerOfTable: icTable)
 		equals: monomorphicallyLinkedCogMethod address + cogit entryOffset.
-	self assert: (self cacheTagsFor: icTable) equals: expectedCacheTags.
+	self assert: self cacheTags equals: expectedCacheTags.
 
 	"Then polymorphic"
 	2 to: ICCacheEntryCount do: [ :i |
@@ -519,7 +521,7 @@ VMInlineCachingTest >> testInlineCacheStateMachineProperlyGoesThroughAllStates [
 		self
 			assert: (memory fetchHandlerOfTable: icTable)
 			equals: (cogit polymorphicSendFor: argCount).
-		self assert: (self cacheTagsFor: icTable) equals: expectedCacheTags ].
+		self assert: self cacheTags equals: expectedCacheTags ].
 
 	"Finally megamorphic"
 	self cogMethodForClass: 7.
@@ -533,7 +535,7 @@ VMInlineCachingTest >> testInlineCacheStateMachineProperlyGoesThroughAllStates [
 	self
 		assert: machineSimulator receiverRegisterValue
 		equals: (memory integerObjectOf: 7).
-	self assert: (self cacheTagsFor: icTable) equals: expectedCacheTags
+	self assert: self cacheTags equals: expectedCacheTags
 ]
 
 { #category : 'tests - metadata' }
@@ -560,21 +562,21 @@ VMInlineCachingTest >> testMonomorphicallyLinkedTrasitionsToPolymorphic [
 	self
 		assert: (memory fetchHandlerOfTable: icTable)
 		equals: (cogit polymorphicSendFor: argCount).
-	self assert: (self cacheTagsFor: icTable) equals: {
+	self assert: self cacheTags equals: {
 			(cacheTags at: 1).
 			(cacheTags at: 2).
 			memory illegalClassTag.
 			memory illegalClassTag.
 			memory illegalClassTag.
 			memory illegalClassTag }.
-	self assert: (self cacheOperandsFor: icTable) equals: {
+	self assert: self cacheOperands equals: {
 			(self methodForClass: 1).
 			(self methodForClass: 2).
 			memory nilObject.
 			memory nilObject.
 			memory nilObject.
 			memory nilObject }.
-	self assert: (self cacheValuesFor: icTable) equals: {
+	self assert: self cacheValues equals: {
 			(method0Cog address + cogit noCheckEntryOffset).
 			(method1Cog address + cogit noCheckEntryOffset).
 			0.
@@ -616,21 +618,21 @@ VMInlineCachingTest >> testPolymorphicallyLinkedSendCanBeExtended [
 	self
 		assert: (memory fetchHandlerOfTable: icTable)
 		equals: (cogit polymorphicSendFor: argCount).
-	self assert: (self cacheTagsFor: icTable) equals: {
+	self assert: self cacheTags equals: {
 			(cacheTags at: 1).
 			(cacheTags at: 2).
 			(cacheTags at: 3).
 			memory illegalClassTag.
 			memory illegalClassTag.
 			memory illegalClassTag }.
-	self assert: (self cacheOperandsFor: icTable) equals: {
+	self assert: self cacheOperands equals: {
 			(self methodForClass: 1).
 			(self methodForClass: 2).
 			(self methodForClass: 3).
 			memory nilObject.
 			memory nilObject.
 			memory nilObject }.
-	self assert: (self cacheValuesFor: icTable) equals: {
+	self assert: self cacheValues equals: {
 			(method0Cog address + cogit noCheckEntryOffset).
 			(method1Cog address + cogit noCheckEntryOffset).
 			(method2Cog address + cogit noCheckEntryOffset).
@@ -671,21 +673,21 @@ VMInlineCachingTest >> testPolymorphicallyLinkedSendFullyExtendedTransitionsToMe
 	self
 		assert: (memory fetchHandlerOfTable: icTable)
 		equals: megamorphicStub address + cogit entryOffset.
-	self assert: (self cacheTagsFor: icTable) equals: {
+	self assert: self cacheTags equals: {
 			memory illegalClassTag.
 			memory illegalClassTag.
 			memory illegalClassTag.
 			memory illegalClassTag.
 			memory illegalClassTag.
 			memory illegalClassTag }.
-	self assert: (self cacheOperandsFor: icTable) equals: {
+	self assert: self cacheOperands equals: {
 			memory nilObject.
 			memory nilObject.
 			memory nilObject.
 			memory nilObject.
 			memory nilObject.
 			memory nilObject }.
-	self assert: (self cacheValuesFor: icTable) equals: { 0. 0. 0. 0. 0. 0 }
+	self assert: self cacheValues equals: { 0. 0. 0. 0. 0. 0 }
 ]
 
 { #category : 'tests - metadata' }
