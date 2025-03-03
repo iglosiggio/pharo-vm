@@ -1385,38 +1385,40 @@ CoInterpreter >> ceNonLocalReturn: returnValue [
 CoInterpreter >> cePolymorphicSendInterpret: icTable method: aMethodObj receiver: rcvr numArgs: numArgs [
 
 	<flag: #workingSet>
-	<flag: #FIXME>
 	<api>
-	| primitiveIndex |
 	self assert: (objectMemory isNotForwarded: icTable).
-	self assert: (objectMemory isNotForwarded: aMethodObj).
 	self assert: (objectMemory isNotForwarded: rcvr).
+	self assert: (objectMemory addressCouldBeOop: rcvr).
 
-	((objectMemory isOopCompiledMethod: aMethodObj) and: [
-		 self methodHasCogMethod: aMethodObj ]) ifTrue: [
-		| cogMethod |
-		"Method was cogged, let's update link it directly from the table and execute it!"
-		cogMethod := self cogMethodOf: aMethodObj.
-		0 to: ICCacheEntryCount - 1 do: [ :i |
-			| operand |
-			operand := objectMemory fetchCacheOperand: i ofTable: icTable.
-			operand = aMethodObj ifTrue: [
-				objectMemory
-					storeCacheValue: i
-					ofTable: icTable
-					with: cogMethod asUnsignedInteger + cogit noCheckEntryOffset ] ].
-		self executeCogMethod: cogMethod fromUnlinkedSendWithReceiver: rcvr.
-		self unreachable ].
+	((objectMemory isOopCompiledMethod: aMethodObj) and: [ self methodHasCogMethod: aMethodObj ])
+		ifTrue: [
+			| cogMethod |
+			"Method was cogged, let's update link it directly from the table and execute it!"
+			cogMethod := self cogMethodOf: aMethodObj.
+			0 to: ICCacheEntryCount - 1 do: [ :i |
+				| operand |
+				operand := objectMemory fetchCacheOperand: i ofTable: icTable.
+				operand = aMethodObj ifTrue: [
+					objectMemory
+						storeCacheValue: i
+						ofTable: icTable
+						with: cogMethod asUnsignedInteger + cogit noCheckEntryOffset ] ].
+			self executeCogMethod: cogMethod fromUnlinkedSendWithReceiver: rcvr.
+			self unreachable ].
 
 	"Method was not cogged, jump to the interpreter instead :("
+	instructionPointer := self popStack.
 	messageSelector := objectMemory fetchSelectorOfTable: icTable.
 	newMethod := aMethodObj.
-	primitiveIndex := self primitiveIndexOf: aMethodObj.
-	primitiveFunctionPointer := self
-		                            functionPointerFor: primitiveIndex
-		                            inClass: objectMemory nilObject.
 	argumentCount := numArgs.
-	instructionPointer := self popStack.
+	primitiveFunctionPointer := (objectMemory isOopCompiledMethod: aMethodObj)
+		ifTrue: [
+			| primitiveIndex |
+			primitiveIndex := self primitiveIndexOf: aMethodObj.
+			self
+				functionPointerFor: primitiveIndex
+				inClass: objectMemory nilObject ]
+		ifFalse: [ #primitiveInvokeObjectAsMethod ].
 	self interpretMethodFromMachineCode.
 	self unreachable
 ]
@@ -1424,27 +1426,38 @@ CoInterpreter >> cePolymorphicSendInterpret: icTable method: aMethodObj receiver
 { #category : 'trampolines' }
 CoInterpreter >> cePolymorphicSendMNU: icTable method: aMethodObj receiver: rcvr numArgs: numArgs [
 
+	<flag: #workingSet>
 	<api>
-	| primitiveIndex |
+	self assert: (objectMemory isNotForwarded: icTable).
+	self assert: (objectMemory isNotForwarded: rcvr).
 	self assert: (objectMemory addressCouldBeOop: rcvr).
-	argumentCount := numArgs.
-	messageSelector := objectMemory fetchSelectorOfTable: icTable.
 
 	instructionPointer := self popStack.
-	self createActualMessageTo: (objectMemory fetchClassOf: rcvr).
-	((objectMemory isOopCompiledMethod: aMethodObj) and: [
-		 self maybeMethodHasCogMethod: aMethodObj ]) ifTrue: [
-		self push: instructionPointer.
-		self
-			executeCogMethod: (self cogMethodOf: aMethodObj)
-			fromUnlinkedSendWithReceiver: rcvr.
-		self unreachable ].
+	messageSelector := objectMemory fetchSelectorOfTable: icTable.
 	newMethod := aMethodObj.
-	primitiveIndex := self primitiveIndexOf: aMethodObj.
-	primitiveFunctionPointer := self
-		                            functionPointerFor: primitiveIndex
-		                            inClass: objectMemory nilObject.
-	^ self interpretMethodFromMachineCode
+	argumentCount := numArgs.
+	self createActualMessageTo: (objectMemory fetchClassOf: rcvr).
+
+	((objectMemory isOopCompiledMethod: aMethodObj) and: [ self maybeMethodHasCogMethod: aMethodObj ])
+		ifTrue: [
+			| cogMethod |
+			self push: instructionPointer.
+			cogMethod := (self cogMethodOf: aMethodObj).
+			self executeCogMethod: cogMethod fromUnlinkedSendWithReceiver: rcvr.
+			self unreachable ].
+
+	messageSelector := objectMemory splObj: SelectorDoesNotUnderstand.
+	argumentCount := 1.
+	primitiveFunctionPointer := (objectMemory isOopCompiledMethod: aMethodObj)
+		ifTrue: [
+			| primitiveIndex |
+			primitiveIndex := self primitiveIndexOf: aMethodObj.
+			self
+				functionPointerFor: primitiveIndex
+				inClass: objectMemory nilObject ]
+		ifFalse: [ #primitiveInvokeObjectAsMethod ].
+	self interpretMethodFromMachineCode.
+	self unreachable
 ]
 
 { #category : 'trampolines' }
