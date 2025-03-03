@@ -3082,13 +3082,14 @@ CoInterpreter >> handleUnlinkedSendFor: icTable to: receiver isSuper: isSuper cl
 
 	(self maybeMethodHasCogMethod: newMethod) ifFalse: [ "
 		Method has no cog method, transfer control to the interpreter"
-		cogit transitionToPolymorphicSend: icTable numArgs: numArgs.
-		cogit
-			configurePolymorphicSendCase: icTable
-			entryIndex: 0
-			cacheTag: classTag
-			operand: newMethod
-			value: (cogit polymorphicSendInterpretFor: numArgs).
+		isSuper = 0 ifTrue: [
+			cogit transitionToPolymorphicSend: icTable numArgs: numArgs.
+			cogit
+				configurePolymorphicSendCase: icTable
+				entryIndex: 0
+				cacheTag: classTag
+				operand: newMethod
+				value: (cogit polymorphicSendInterpretFor: numArgs) ].
 		instructionPointer := self popStack.
 		self interpretMethodFromMachineCode.
 		self unreachable ].

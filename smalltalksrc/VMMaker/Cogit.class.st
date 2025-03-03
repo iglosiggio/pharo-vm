@@ -130,13 +130,10 @@ Class {
 		'printInstructions',
 		'compilationTrace',
 		'clickConfirm',
-		'breakPC',
-		'breakBlock',
 		'singleStep',
 		'guardPageSize',
 		'traceFlags',
 		'traceStores',
-		'breakMethod',
 		'methodObj',
 		'methodHeader',
 		'initialPC',
@@ -165,7 +162,6 @@ Class {
 		'cbNoSwitchEntryOffset',
 		'picMNUAbort',
 		'picInterpretAbort',
-		'closedPICSize',
 		'openPICSize',
 		'fixups',
 		'abstractOpcodes',
@@ -3220,14 +3216,13 @@ Cogit >> assertExtsAreConsumed: descriptor [
 
 { #category : 'debugging' }
 Cogit >> assertSaneJumpTarget: jumpTarget [
-	<var: #jumpTarget type: #'AbstractInstruction *'>
 
-	self assert: (closedPICSize isNil "don't whinge when producing the PIC prototypes"
-			or: [openPICSize isNil
-			or: [(self addressIsInInstructions: jumpTarget)
-			or: [(jumpTarget asUnsignedInteger
-					between: codeBase
-					and: methodZone limitZony asInteger + (closedPICSize max: openPICSize))]]])
+	<var: #jumpTarget type: #'AbstractInstruction *'>
+	self assert: (openPICSize isNil or: [
+			 (self addressIsInInstructions: jumpTarget) or: [
+				 jumpTarget asUnsignedInteger
+					 between: codeBase
+					 and: methodZone limitZony asInteger + openPICSize ] ])
 ]
 
 { #category : 'in-line cacheing' }
@@ -4397,13 +4392,6 @@ Cogit >> checkMaybeObjRefInClosedPIC: maybeObject [
 Cogit >> checkStackDepthOnSend [
 	<doNotGenerate>
 	^(traceFlags bitAnd: 128) ~= 0
-]
-
-{ #category : 'accessing' }
-Cogit >> closedPICSize [
-	"For Cogit clas>>#genAndDisPICoptions:"
-	<doNotGenerate>
-	^closedPICSize
 ]
 
 { #category : 'accessing' }
@@ -9557,6 +9545,7 @@ Cogit >> polymorphicSendFor: numArgs [
 Cogit >> polymorphicSendInterpretFor: numArgs [
 
 	<flag: #workingSet>
+	<api>
 	^ polymorphicSendInterpretTrampolines at: (numArgs min: self numRegArgs + 1)
 ]
 
@@ -11016,12 +11005,13 @@ Cogit >> transitionToMegamorphicSend: icTable usingStub: megamorphicStub [
 Cogit >> transitionToMonomorphicSend: icTable cacheTag: classTag cogMethod: cogMethod isSuper: isSuper [
 
 	<flag: #workingSet>
+	<var: #cogMethod type: #'CogMethod *'>
 	<api>
 	| entryOffset handler |
 	entryOffset := isSuper = 0
 		               ifTrue: [ cmEntryOffset ]
 		               ifFalse: [ cmNoCheckEntryOffset ].
-	handler := cogMethod address + entryOffset.
+	handler := cogMethod asUnsignedInteger + entryOffset.
 	objectMemory storeHandlerOfTable: icTable with: handler.
 	objectMemory clearAllICTableEntries: icTable.
 	objectMemory storeCacheTag: 0 ofTable: icTable with: classTag

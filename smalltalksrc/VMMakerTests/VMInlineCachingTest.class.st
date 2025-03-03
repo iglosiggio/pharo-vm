@@ -349,7 +349,7 @@ VMInlineCachingTest >> testInlineCacheCanExecuteCoggedDoesNotUnderstandMethods [
 		equals: expectedReturnValue
 ]
 
-{ #category : 'tests - interpreted methods' }
+{ #category : 'tests - doesNotUnderstand:' }
 VMInlineCachingTest >> testInlineCacheCanLinkAgainstDoesNotUnderstand [
 
 	| dnuSelector class methodDict methodOop methodCog |
@@ -572,24 +572,24 @@ VMInlineCachingTest >> testMonomorphicallyLinkedSendTransitionsToMegamorphicForM
 { #category : 'tests - state transitions' }
 VMInlineCachingTest >> testMonomorphicallyLinkedTrasitionsToPolymorphic [
 
-	| method0Cog method1Cog |
-	method0Cog := self cogMethodForClass: 1.
-	method1Cog := self cogMethodForClass: 2.
+	| method1Cog method2Cog |
+	method1Cog := self cogMethodForClass: 1.
+	method2Cog := self cogMethodForClass: 2.
 
 	cogit
 		transitionToMonomorphicSend: icTable
 		cacheTag: (cacheTags at: 1)
-		cogMethod: method0Cog
+		cogMethod: method1Cog
 		isSuper: 0.
 
 	machineSimulator arg0RegisterValue: (instances at: 2).
 	self
 		runFrom: senderCogMethod address + cogit noCheckEntryOffset
-		until: method1Cog address + cogit noCheckEntryOffset.
+		until: method2Cog address + cogit noCheckEntryOffset.
 
 	self
 		assert: machineSimulator instructionPointerRegisterValue
-		equals: method1Cog address + cogit noCheckEntryOffset.
+		equals: method2Cog address + cogit noCheckEntryOffset.
 	self
 		assert: (memory fetchHandlerOfTable: icTable)
 		equals: (cogit polymorphicSendFor: argCount).
@@ -608,8 +608,8 @@ VMInlineCachingTest >> testMonomorphicallyLinkedTrasitionsToPolymorphic [
 			memory nilObject.
 			memory nilObject }.
 	self assert: self cacheValues equals: {
-			(method0Cog address + cogit noCheckEntryOffset).
 			(method1Cog address + cogit noCheckEntryOffset).
+			(method2Cog address + cogit noCheckEntryOffset).
 			0.
 			0.
 			0.
@@ -741,9 +741,6 @@ VMInlineCachingTest >> testPolymorphicallyLinkedSendFullyExtendedTransitionsToMe
 	megamorphicStub := cogit cogOpenPICSelector: oopSelector numArgs: argCount.
 
 	machineSimulator arg0RegisterValue: (instances at: 7).
-	{
-		interpreter inMemoryCStackPointerAddress hex.
-		(memory long64At: interpreter inMemoryCStackPointerAddress) hex }.
 	self
 		runFrom: senderCogMethod address + cogit noCheckEntryOffset
 		until: (linkedCogMethods at: 7) address + cogit noCheckEntryOffset.
