@@ -1391,9 +1391,9 @@ CoInterpreter >> cePolymorphicSendInterpret: icTable method: aMethodObj receiver
 	self assert: (objectMemory isNotForwarded: icTable).
 	self assert: (objectMemory isNotForwarded: aMethodObj).
 	self assert: (objectMemory isNotForwarded: rcvr).
-	"NOTE: Fix for #run:with:in:!!"
 
-	(self methodHasCogMethod: aMethodObj) ifTrue: [
+	((objectMemory isOopCompiledMethod: aMethodObj) and: [
+		 self methodHasCogMethod: aMethodObj ]) ifTrue: [
 		| cogMethod |
 		"Method was cogged, let's update link it directly from the table and execute it!"
 		cogMethod := self cogMethodOf: aMethodObj.
@@ -1427,14 +1427,13 @@ CoInterpreter >> cePolymorphicSendMNU: icTable method: aMethodObj receiver: rcvr
 	<api>
 	| primitiveIndex |
 	self assert: (objectMemory addressCouldBeOop: rcvr).
-	self assert: ((objectMemory addressCouldBeObj: aMethodObj) and: [
-			 objectMemory isOopCompiledMethod: aMethodObj ]).
 	argumentCount := numArgs.
 	messageSelector := objectMemory fetchSelectorOfTable: icTable.
 
 	instructionPointer := self popStack.
 	self createActualMessageTo: (objectMemory fetchClassOf: rcvr).
-	(self maybeMethodHasCogMethod: aMethodObj) ifTrue: [
+	((objectMemory isOopCompiledMethod: aMethodObj) and: [
+		 self maybeMethodHasCogMethod: aMethodObj ]) ifTrue: [
 		self push: instructionPointer.
 		self
 			executeCogMethod: (self cogMethodOf: aMethodObj)
