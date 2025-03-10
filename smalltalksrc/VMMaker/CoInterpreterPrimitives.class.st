@@ -122,9 +122,7 @@ CoInterpreterPrimitives >> primitiveFlushCacheBySelector [
 	(selector = (self specialSelector: 16) "at:"
 	 or: [selector = (self specialSelector: 17) "at:put:"]) ifTrue:
 		[self flushAtCache].
-	cogit
-		unlinkSendsOf: selector
-		isMNUSelector: (selector = (objectMemory splObj: SelectorDoesNotUnderstand))
+	cogit unlinkSendsOf: selector
 ]
 
 { #category : 'trampoline support' }
