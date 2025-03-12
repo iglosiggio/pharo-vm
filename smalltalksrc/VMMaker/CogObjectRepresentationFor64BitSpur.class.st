@@ -1,9 +1,6 @@
 Class {
 	#name : 'CogObjectRepresentationFor64BitSpur',
 	#superclass : 'CogObjectRepresentationForSpur',
-	#instVars : [
-		'ceDereferenceSelectorIndex'
-	],
 	#category : 'VMMaker-JIT',
 	#package : 'VMMaker',
 	#tag : 'JIT'
@@ -2235,42 +2232,6 @@ CogObjectRepresentationFor64BitSpur >> maybeGenConvertIfSmallFloatIn: oopReg scr
 	^0
 ]
 
-{ #category : 'initialization' }
-CogObjectRepresentationFor64BitSpur >> maybeGenerateSelectorIndexDereferenceRoutine [
-	"Generate the routine that converts selector indices into selector objects.
-	 It is called from the send trampolines.
-	 If the selector index is negative, convert it into a positive index into the
-	 special selectors array and index that.  Otherwise, index the current method.
-	 The routine uses Extra0Reg & Extra1Reg, which are available, since they
-	 are not live at point of send."
-	| jumpNegative |
-	<var: 'jumpNegative' type: #'AbstractInstruction *'>
-	cogit zeroOpcodeIndex.
-	cogit CmpCq: 0 R: ClassReg.
-	jumpNegative := cogit JumpLess: 0.
-	cogit
-		MoveMw: FoxMethod r: FPReg R: Extra0Reg;
-		AddCq: 2 R: ClassReg; "Change selector index to 1-relative, skipping the method header"
-		AndCq: methodZone zoneAlignment negated R: Extra0Reg; "Now fetch the method object and index with the literal index to retrieve the selector"
-		MoveMw: (cogit offset: CogMethod of: #methodObject) r: Extra0Reg R: Extra1Reg;
-		MoveXwr: ClassReg R: Extra1Reg R: ClassReg;
-		RetN: 0.
-	jumpNegative jmpTarget: cogit Label.
-	cogit
-		NegateR: ClassReg;
-		LogicalShiftLeftCq: 1 R: ClassReg;
-		MoveAw: objectMemory specialObjectsArrayAddress R: Extra0Reg;
-		SubCq: 1 R: ClassReg;
-		MoveMw: SpecialSelectors + 1 * objectMemory wordSize r: Extra0Reg R: Extra1Reg; "Index, including header size"
-		MoveXwr: ClassReg R: Extra1Reg R: ClassReg;
-		RetN: 0.
-	ceDereferenceSelectorIndex := cogit methodZoneBase.
-	cogit
-		outputInstructionsForGeneratedRuntimeAt: ceDereferenceSelectorIndex;
-		recordGeneratedRunTime: 'ceDereferenceSelectorIndex' address: ceDereferenceSelectorIndex;
-		recordRunTimeObjectReferences
-]
-
 { #category : 'sista support' }
 CogObjectRepresentationFor64BitSpur >> numCountersFor: theCounters [
 	<var: #theCounters type: #usqInt>
@@ -2289,19 +2250,6 @@ CogObjectRepresentationFor64BitSpur >> numSmallIntegerBits [
 { #category : 'object representation' }
 CogObjectRepresentationFor64BitSpur >> numSmallIntegerTagBits [
 	^3
-]
-
-{ #category : 'calling convention' }
-CogObjectRepresentationFor64BitSpur >> selectorIndexDereferenceRoutine [
-	"If the object representation is 64-bits, selectors must be accessed via indices in the inline caches.
-	 Answer the routine that will map from indices to selector objects if so, otherwise nil."
-	^ceDereferenceSelectorIndex
-]
-
-{ #category : 'as yet unclassified' }
-CogObjectRepresentationFor64BitSpur >> selectorIndexDereferenceRoutine: anInteger [ 
-	
-	ceDereferenceSelectorIndex := anInteger
 ]
 
 { #category : 'debug support' }

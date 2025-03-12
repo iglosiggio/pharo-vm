@@ -3662,20 +3662,6 @@ Cogit >> ceCheckForInterruptTrampoline: anInteger [
 	ceCheckForInterruptTrampoline := anInteger
 ]
 
-{ #category : 'accessing' }
-Cogit >> ceDereferenceSelectorIndex [
-	
-	<doNotGenerate>
-	^ objectRepresentation selectorIndexDereferenceRoutine
-]
-
-{ #category : 'accessing' }
-Cogit >> ceDereferenceSelectorIndex: anInteger [ 
-	
-	<doNotGenerate>
-	objectRepresentation selectorIndexDereferenceRoutine: anInteger
-]
-
 { #category : 'simulation only' }
 Cogit >> ceEnterCogCodePopReceiverReg [
 	<api: 'extern void (*ceEnterCogCodePopReceiverReg)()'>
@@ -7487,7 +7473,6 @@ Cogit >> generateTrampolines [
 
 	self
 		enableCodeZoneWriteDuring: [
-			objectRepresentation maybeGenerateSelectorIndexDereferenceRoutine.
 			self generatePolymorphicSendTrampolines.
 			self generateSendTrampolines.
 			self generateMissAbortTrampolines.
