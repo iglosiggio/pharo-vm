@@ -173,9 +173,7 @@ CogMethod >> cbUsesInstVars: anObject [
 CogMethod >> cmIsFullBlock [
 	"Answer the value of isFullBlock"
 	<inline: true>
-	^SistaV1BytecodeSet
-		ifTrue: [self isFullBlock]
-		ifFalse: [false]
+	^ self isFullBlock
 ]
 
 { #category : 'accessing' }
@@ -265,7 +263,7 @@ CogMethod >> counters [
 CogMethod >> isFullBlock [
 	"Answer the value of isFullBlock"
 
-	^isFullBlock
+	^ isFullBlock
 ]
 
 { #category : 'accessing' }

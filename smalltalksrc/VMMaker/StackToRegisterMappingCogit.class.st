@@ -952,7 +952,6 @@ StackToRegisterMappingCogit >> compileAbstractInstructionsFrom: start through: e
 
 { #category : 'compile abstract instructions' }
 StackToRegisterMappingCogit >> compileCogFullBlockMethod: numCopied [
-	<option: #SistaV1BytecodeSet>
 	methodOrBlockNumTemps := coInterpreter tempCountOf: methodObj.
 	self cCode: '' inSmalltalk:
 		[debugStackPointers := coInterpreter debugStackPointersFor: methodObj].
@@ -1003,7 +1002,6 @@ StackToRegisterMappingCogit >> compileFullBlockFramelessEntry: numCopied [
 
 { #category : 'compile abstract instructions' }
 StackToRegisterMappingCogit >> compileFullBlockMethodFrameBuild: numCopied [
-	<option: #SistaV1BytecodeSet>
 	useTwoPaths ifTrue: 
 		[ "method with only inst var store, we compile only slow path for now" 
 		 useTwoPaths := false.
@@ -2110,7 +2108,6 @@ StackToRegisterMappingCogit >> genPrimReturn [
 { #category : 'primitive generators' }
 StackToRegisterMappingCogit >> genPrimitiveFullClosureValue [
 	"Override to push the register args first."
-	<option: #SistaV1BytecodeSet>
 	self genPushRegisterArgs.
 	^super genPrimitiveFullClosureValue
 ]

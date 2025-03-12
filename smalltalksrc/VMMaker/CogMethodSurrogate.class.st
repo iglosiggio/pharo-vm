@@ -124,9 +124,7 @@ CogMethodSurrogate >> at: anAddress objectMemory: objectMemory cogit: aCogit [
 CogMethodSurrogate >> cmIsFullBlock [
 	"Answer the value of isFullBlock"
 
-	^SistaV1BytecodeSet
-		ifTrue: [self isFullBlock]
-		ifFalse: [false]
+	^ self isFullBlock
 ]
 
 { #category : 'testing' }
