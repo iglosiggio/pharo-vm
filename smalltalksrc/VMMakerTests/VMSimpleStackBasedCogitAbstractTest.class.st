@@ -56,7 +56,7 @@ VMSimpleStackBasedCogitAbstractTest class >> wordSize64Parameters [
 
 	^ ParametrizedTestMatrix new
 		addCase: { #ISA -> #'aarch64'. #wordSize -> 8};
-		"addCase: { #ISA -> #'X64'. #wordSize -> 8};"
+		addCase: { #ISA -> #'X64'. #wordSize -> 8};
 		yourself
 ]
 

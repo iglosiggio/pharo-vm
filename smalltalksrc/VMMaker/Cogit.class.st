@@ -5145,14 +5145,12 @@ Cogit >> compileEntry [
 	<story: #pic>
 	entry := objectRepresentation
 		         genGetInlineCacheClassTagFrom: ReceiverResultReg
-		         into: TempReg
-		         forEntry: true.
+		         into: TempReg.
 	self
 		MoveM32: objectMemory cacheTagIndexForMonomorphicallyLinkedSend * 4
 			+ objectMemory baseHeaderSize
 		r: ClassReg
 		R: Extra0Reg.
-	self ZeroExtend32R: Extra0Reg R: Extra0Reg.
 	self CmpR: Extra0Reg R: TempReg.
 	self JumpNonZero: sendMiss.
 	noCheckEntry := self Label.
@@ -6612,14 +6610,13 @@ Cogit >> genPolymorphicSendTrampoline: numArgs [
 	start := self Label.
 	objectRepresentation
 		genGetInlineCacheClassTagFrom: ReceiverResultReg
-		into: TempReg
-		forEntry: false.
+		into: TempReg.
 
 	0 to: ICCacheEntryCount - 1 do: [ :i |
 		self
 			MoveM32:
-				(objectMemory cacheTagIndexForICTableEntry: i) * 4
-				+ objectMemory baseHeaderSize
+			(objectMemory cacheTagIndexForICTableEntry: i) * 4
+			+ objectMemory baseHeaderSize
 			r: ClassReg
 			R: Extra0Reg.
 		self CmpR: Extra0Reg R: TempReg.
