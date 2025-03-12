@@ -6584,9 +6584,12 @@ Cogit >> genPolymorphicSendMNUTrampoline: numArgs [
 Cogit >> genPolymorphicSendTrampoline: numArgs [
 
 	<flag: #workingSet>
-	<var: #jumpNext type: #'AbstractInstruction *'>
+	<var: #jumpHits declareC:'AbstractInstruction* _jumpHits[ICCacheEntryCount]'>
 	<var: #start type: #'AbstractInstruction *'>
-	| start jumpNext |
+	| startAddress start jumpHits |
+	self simulationOnly: [
+		jumpHits := CArrayAccessor on: (Array new: ICCacheEntryCount) ].
+	startAddress := methodZoneBase.
 	self zeroOpcodeIndex.
 
 	start := self Label.
@@ -6602,17 +6605,7 @@ Cogit >> genPolymorphicSendTrampoline: numArgs [
 			r: ClassReg
 			R: Extra0Reg.
 		self CmpR: Extra0Reg R: TempReg.
-		jumpNext := self JumpNonZero: 0.
-		objectRepresentation
-			genLoadSlot: (objectMemory cacheOperandSlotForICTableEntry: i)
-			sourceReg: ClassReg
-			destReg: Extra0Reg.
-		objectRepresentation
-			genLoadSlot: (objectMemory cacheValueSlotForICTableEntry: i)
-			sourceReg: ClassReg
-			destReg: TempReg.
-		self JumpR: TempReg.
-		jumpNext jmpTarget: self Label ].
+		jumpHits at: i put: (self JumpZero: 0) ].
 
 	"Peel one level of forwarders and try again. We can alternatively write a check and loop."
 	objectRepresentation
@@ -6626,9 +6619,8 @@ Cogit >> genPolymorphicSendTrampoline: numArgs [
 		scratchReg: TempReg.
 	"Sends with a small number of arguments carry their count implicitly. Time to make it explicit"
 	numArgs <= self numRegArgs ifTrue: [ self MoveCq: numArgs R: SendNumArgsReg ].
-	^ self
-		  genTrampolineFor: #cePolymorphicSendMiss:receiver:numArgs:
-		  called: (self trampolineName: 'cePolymorphicSend' numArgs: numArgs)
+	self
+		  compileTrampolineFor: #cePolymorphicSendMiss:receiver:numArgs:
 		  numArgs: 3
 		  arg: ClassReg
 		  arg: ReceiverResultReg
@@ -6636,8 +6628,26 @@ Cogit >> genPolymorphicSendTrampoline: numArgs [
 		  arg: nil
 		  regsToSave: self emptyRegisterMask
 		  pushLinkReg: false
-		  resultReg: NoReg
-		  appendOpcodes: true
+		  resultReg: NoReg.
+
+	0 to: ICCacheEntryCount - 1 do: [ :i |
+		(jumpHits at: i) jmpTarget: self Label.
+		objectRepresentation
+			genLoadSlot: (objectMemory cacheOperandSlotForICTableEntry: i)
+			sourceReg: ClassReg
+			destReg: Extra0Reg.
+		objectRepresentation
+			genLoadSlot: (objectMemory cacheValueSlotForICTableEntry: i)
+			sourceReg: ClassReg
+			destReg: TempReg.
+		self JumpR: TempReg ].
+	
+	self outputInstructionsForGeneratedRuntimeAt: startAddress.
+	self
+		recordGeneratedRunTime: (self trampolineName: 'cePolymorphicSend' numArgs: numArgs)
+		address: startAddress.
+	self recordRunTimeObjectReferences.
+	^ startAddress
 ]
 
 { #category : 'initialization' }
