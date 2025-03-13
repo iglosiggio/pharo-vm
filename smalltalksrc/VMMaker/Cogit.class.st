@@ -190,7 +190,6 @@ Class {
 		'ceCannotResumeTrampoline',
 		'ceEnterCogCodePopReceiverReg',
 		'ceCallCogCodePopReceiverReg',
-		'ceCallCogCodePopReceiverAndClassRegs',
 		'cePrimReturnEnterCogCode',
 		'cePrimReturnEnterCogCodeProfiling',
 		'ceNonLocalReturnTrampoline',
@@ -213,7 +212,6 @@ Class {
 		'lastSend',
 		'realCEEnterCogCodePopReceiverReg',
 		'realCECallCogCodePopReceiverReg',
-		'realCECallCogCodePopReceiverAndClassRegs',
 		'trampolineTableIndex',
 		'trampolineAddresses',
 		'objectReferencesInRuntime',
@@ -459,10 +457,6 @@ Cogit class >> declareCVarsIn: aCCodeGenerator [
 		declareC: 'void (*ceCallCogCodePopReceiverReg)(void)';
 		var: #realCECallCogCodePopReceiverReg
 		declareC: 'void (*realCECallCogCodePopReceiverReg)(void)';
-		var: #ceCallCogCodePopReceiverAndClassRegs
-		declareC: 'void (*ceCallCogCodePopReceiverAndClassRegs)(void)';
-		var: #realCECallCogCodePopReceiverAndClassRegs
-		declareC: 'void (*realCECallCogCodePopReceiverAndClassRegs)(void)';
 		var: #ceFlushICache
 		declareC:
 			'static void (*ceFlushICache)(usqIntptr_t from, usqIntptr_t to)';
@@ -1198,8 +1192,6 @@ Cogit class >> mustBeGlobal: var [
 	     'ceCheckForInterruptTrampoline' ceEnterCogCodePopReceiverReg
 	     realCEEnterCogCodePopReceiverReg
 	     ceCallCogCodePopReceiverReg realCECallCogCodePopReceiverReg
-	     ceCallCogCodePopReceiverAndClassRegs
-	     realCECallCogCodePopReceiverAndClassRegs
 	     'ceReturnToInterpreterTrampoline'
 	     'ceCannotResumeTrampoline' ceTryLockVMOwner ceUnlockVMOwner
 	     'cmEntryOffset' 'cmNoCheckEntryOffset' 'cmDynSuperEntryOffset'
@@ -3584,17 +3576,6 @@ Cogit >> callCogCodePopReceiver [
 	Debug ifFalse: [self error: 'what??']
 ]
 
-{ #category : 'debugging' }
-Cogit >> callCogCodePopReceiverAndClassRegs [
-	"This is a static version of ceCallCogCodePopReceiverAndClassRegs
-	 for break-pointing when debugging in C."
-	<api>
-	<inline: false>
-	"This exists only for break-pointing."
-	self cCode: [self cCall: 'realCECallCogCodePopReceiverAndClassRegs']
-		inSmalltalk: [self ceCallCogCodePopReceiverAndClassRegs]
-]
-
 { #category : 'accessing' }
 Cogit >> ceBaseFrameReturnPC [
 	<api>
@@ -3608,13 +3589,6 @@ Cogit >> ceBaseFrameReturnTrampoline: anInteger [
 	<doNotGenerate>
 	
 	ceBaseFrameReturnTrampoline := anInteger
-]
-
-{ #category : 'simulation only' }
-Cogit >> ceCallCogCodePopReceiverAndClassRegs [
-	<api: 'extern void (*ceCallCogCodePopReceiverAndClassRegs)()'>
-	<doNotGenerate>
-	self simulateEnilopmart: ceCallCogCodePopReceiverAndClassRegs numArgs: 2
 ]
 
 { #category : 'simulation only' }
@@ -7180,25 +7154,14 @@ Cogit >> generateEnilopmarts [
 				self genEnilopmartFor: ReceiverResultReg
 					forCall: true
 					called: 'realCEEnterCogCodePopReceiverReg'.
-			 ceCallCogCodePopReceiverReg := #callCogCodePopReceiver.
-			 realCECallCogCodePopReceiverAndClassRegs :=
-				self genEnilopmartFor: ReceiverResultReg
-					and: ClassReg
-					forCall: true
-					called: 'realCECallCogCodePopReceiverAndClassRegs'.
-			 ceCallCogCodePopReceiverAndClassRegs := #callCogCodePopReceiverAndClassRegs]
+			 ceCallCogCodePopReceiverReg := #callCogCodePopReceiver]
 		ifFalse:
 			[ceEnterCogCodePopReceiverReg := self genEnilopmartFor: ReceiverResultReg
 														forCall: false
 														called: 'ceEnterCogCodePopReceiverReg'.
 			 ceCallCogCodePopReceiverReg := self genEnilopmartFor: ReceiverResultReg
 													forCall: true
-													called: 'ceCallCogCodePopReceiverReg'.
-			 ceCallCogCodePopReceiverAndClassRegs :=
-				self genEnilopmartFor: ReceiverResultReg
-					and: ClassReg
-					forCall: true
-					called: 'ceCallCogCodePopReceiverAndClassRegs'].
+													called: 'ceCallCogCodePopReceiverReg'].
 	
 	self genPrimReturnEnterCogCodeEnilopmart: false.
 	cePrimReturnEnterCogCode := methodZoneBase.
