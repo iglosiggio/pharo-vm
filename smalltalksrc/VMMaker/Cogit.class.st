@@ -3804,8 +3804,7 @@ Cogit >> cePolymorphicSendMiss: icTable receiver: receiver numArgs: numArgs [
 		operand: newCaseOperand
 		value: newCaseTarget.
 
-	"FIXME: We should jump directly to the method or re-try the pic instead.
-	 See the implementation at #executeCogPIC:fromLinkedSendWithReceiver:andICTable:"
+	"FIXME: We should jump directly to the method or re-try the pic instead."
 	^ coInterpreter
 		  ceSendFromInLineCacheMiss2: selector
 		  numArgs: numArgs
@@ -3853,7 +3852,7 @@ Cogit >> ceSICMiss: receiver icTable: icTable [
 	missedTargetCogMethod := self
 		                         cCoerceSimple: sendHandler - cmEntryOffset
 		                         to: #'CogMethod *'.
-	selector := missedTargetCogMethod selector.
+	selector := objectMemory fetchSelectorOfTable: icTable.
 	numArgs := missedTargetCogMethod cmNumArgs.
 
 	missedTargetReturnAddress := coInterpreter popStack asUnsignedInteger.
@@ -3865,7 +3864,7 @@ Cogit >> ceSICMiss: receiver icTable: icTable [
 		^ coInterpreter ceSendFromInLineCacheMiss: missedTargetCogMethod ].
 
 	self
-		lookup: missedTargetCogMethod selector
+		lookup: selector
 		for: receiver
 		methodAndErrorSelectorInto: [ :method :errsel |
 			newTargetMethodOrNil := method.
