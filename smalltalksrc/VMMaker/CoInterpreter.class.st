@@ -3073,27 +3073,14 @@ CoInterpreter >> handleUnlinkedSendFor: icTable to: receiver isSuper: isSuper cl
 		self interpretMethodFromMachineCode.
 		self unreachable ].
 
-	"Method has a cog method.  Attempt to link to it.  The receiver's class may be young.
-	If the Cogit can't store young classes in inline caches we can link to an open PIC instead."
 	cogMethod := self cogMethodOf: newMethod.
 	cogMethod selector = objectMemory nilObject ifTrue: [
 		cogit setSelectorOf: cogMethod to: selector ].
-
-	cogMethod selector = selector
-		ifTrue: [
-			cogit
-				transitionToMonomorphicSend: icTable
-				cacheTag: classTag
-				cogMethod: cogMethod
-				isSuper: isSuper ]
-		ifFalse: [
-			isSuper = 0 ifTrue: [ "
-				Megamorphic PICs perform normal sends. Can't patch if this is a super send."
-				cogit
-					patchToMegamorphicICFor: selector
-					numArgs: numArgs
-					receiver: receiver
-					icTable: icTable ] ].
+	cogit
+		transitionToMonomorphicSend: icTable
+		cacheTag: classTag
+		cogMethod: cogMethod
+		isSuper: isSuper.
 	instructionPointer := self popStack.
 	self executeNewMethod.
 	self unreachable
