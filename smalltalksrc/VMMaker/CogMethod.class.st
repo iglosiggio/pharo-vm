@@ -103,7 +103,7 @@ CogMethod class >> instVarNamesAndTypesForTranslationDo: aBinaryBlock [
 						  VMClass objectMemoryClass baseHeaderSize = 8
 							  ifTrue: [ #sqLong ]
 							  ifFalse: [ #sqInt ] ]).
-						 ([ 'cmNumArgs' ] -> [ #( unsigned ' : 8' ) ]). "SqueakV3 needs only 5 bits"
+						 ([ 'cmNumArgs' ] -> [ #uint8_t ]).
 						 ([ 'cmType' ] -> [ #( unsigned ' : 3' ) ]).
 						 ([ 'cmRefersToYoung' ] -> [ #( unsigned #Boolean ' : 1' ) ]).
 						 ([ 'isFullBlock' ]

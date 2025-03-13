@@ -67,13 +67,16 @@ VMSimpleStackBasedCogitMegamorphicPICTest >> testMiss [
 	"We call to get to the abort trampoline. If this fails this will timeout"
 	finishedSimulation := false.
 
-	self runFrom: createdPic asInteger + cogit entryOffset until: inlineCacheMissTrampoline.
+	self runFrom: createdPic asInteger + cogit entryOffset until: megamorphicICMissTrampoline.
 
 	"Failing all two PIC cases calls the pic trampoline.
 	 - The instruction pointer is at the trampoline
-	 - The class register value contains the pic
-	 - the receiver register value contains the receiver"	
-	self assert: machineSimulator sendNumberOfArgumentsRegisterValue equals: createdPic address
+	 - The class register value contains the selector
+	 - The num args register contains the number of arguments
+	 - the receiver register value contains the receiver"
+	self assert: machineSimulator classRegisterValue equals: createdPic selector.
+	self assert: machineSimulator sendNumberOfArgumentsRegisterValue equals: createdPic cmNumArgs.
+	self assert: machineSimulator receiverRegisterValue equals: memory falseObject.
 ]
 
 { #category : 'tests - metadata' }

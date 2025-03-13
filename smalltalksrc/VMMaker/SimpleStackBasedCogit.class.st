@@ -803,12 +803,16 @@ SimpleStackBasedCogit >> compileOpenPIC: selector numArgs: numArgs [
 		[backEnd genPushRegisterArgsForNumArgs: numArgs scratchReg: SendNumArgsReg].
 	self genSmalltalkToCStackSwitch: true.
 	methodLabel addDependent: (self annotateAbsolutePCRef: (self MoveCw: methodLabel asInteger R: SendNumArgsReg)).
+	self MoveMw: (self offset: CogMethod of: #selector) r: SendNumArgsReg R: ClassReg.
+	self MoveMb: (self offset: CogMethod of: #cmNumArgs) r: SendNumArgsReg R: SendNumArgsReg.
+	backEnd byteReadsZeroExtend ifTrue: [
+		self ZeroExtend8R: SendNumArgsReg R: SendNumArgsReg ].
 	self 
-		compileCallFor: #ceSendFromInLineCacheMiss:
-		numArgs: 1
+		compileCallFor: #ceSendFromInLineCacheMiss:numArgs:receiver:
+		numArgs: 3
+		arg: ClassReg
 		arg: SendNumArgsReg
-		arg: nil
-		arg: nil
+		arg: ReceiverResultReg
 		arg: nil
 		resultReg: NoReg
 		regsToSave: self emptyRegisterMask

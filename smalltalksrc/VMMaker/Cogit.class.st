@@ -3750,10 +3750,11 @@ Cogit >> cePolymorphicSendMiss: icTable receiver: receiver numArgs: numArgs [
 			numArgs: numArgs
 			receiver: receiver
 			icTable: icTable.
-		^ coInterpreter
-			  ceSendFromInLineCacheMiss2: selector
+		coInterpreter
+			  ceSendFromInLineCacheMiss: selector
 			  numArgs: numArgs
-			  receiver: receiver ].
+			  receiver: receiver.
+		^ self unreachable ].
 
 	self
 		lookup: selector
@@ -3774,10 +3775,11 @@ Cogit >> cePolymorphicSendMiss: icTable receiver: receiver numArgs: numArgs [
 				numArgs: numArgs
 				receiver: receiver
 				icTable: icTable.
-			^ coInterpreter
-				  ceSendFromInLineCacheMiss2: selector
-				  numArgs: numArgs
-				  receiver: nil ].
+			coInterpreter
+				ceSendFromInLineCacheMiss: selector
+				numArgs: numArgs
+				receiver: receiver.
+			^ self unreachable ].
 
 	"      method | errorSelector             | situation
 	 -------------+---------------------------+---------------------------------------------------------
@@ -3804,11 +3806,11 @@ Cogit >> cePolymorphicSendMiss: icTable receiver: receiver numArgs: numArgs [
 		operand: newCaseOperand
 		value: newCaseTarget.
 
-	"FIXME: We should jump directly to the method or re-try the pic instead."
-	^ coInterpreter
-		  ceSendFromInLineCacheMiss2: selector
-		  numArgs: numArgs
-		  receiver: receiver
+	coInterpreter
+		ceSendFromInLineCacheMiss: selector
+		numArgs: numArgs
+		receiver: receiver.
+	^ self unreachable
 ]
 
 { #category : 'accessing' }
@@ -3861,7 +3863,8 @@ Cogit >> ceSICMiss: receiver icTable: icTable [
 		missedTargetCogMethod asInteger + missOffset = missedTargetReturnAddress.
 
 	(objectMemory isOopForwarded: receiver) ifTrue: [
-		^ coInterpreter ceSendFromInLineCacheMiss: missedTargetCogMethod ].
+		coInterpreter ceSendFromInLineCacheMiss: selector numArgs: numArgs receiver: receiver.
+		^ self unreachable ].
 
 	self
 		lookup: selector
@@ -3882,7 +3885,8 @@ Cogit >> ceSICMiss: receiver icTable: icTable [
 				numArgs: numArgs
 				receiver: receiver
 				icTable: icTable.
-			^ coInterpreter ceSendFromInLineCacheMiss: missedTargetCogMethod ].
+			coInterpreter ceSendFromInLineCacheMiss: missedTargetCogMethod numArgs: numArgs receiver: receiver.
+			^ self unreachable].
 
 	"If early promotion is allowed check if anyone else saw this selector turn megamorphic"
 	self allowEarlyPromotionToMegamorphicIC ifTrue: [
@@ -3927,8 +3931,8 @@ Cogit >> ceSICMiss: receiver icTable: icTable [
 		operand: newTargetMethodOrNil
 		value: cacheValue1.
 
-	"FIXME: Re-execute the icTable!"
-	^ coInterpreter ceSendFromInLineCacheMiss: missedTargetCogMethod
+	coInterpreter ceSendFromInLineCacheMiss: selector numArgs: numArgs receiver: receiver.
+	^ self unreachable
 ]
 
 { #category : 'accessing' }

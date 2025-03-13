@@ -1633,92 +1633,39 @@ CoInterpreter >> ceSendAbort: selector to: rcvr numArgs: numArgs [
 ]
 
 { #category : 'trampolines' }
-CoInterpreter >> ceSendFromInLineCacheMiss2: selector numArgs: numArgs receiver: rcvr [
+CoInterpreter >> ceSendFromInLineCacheMiss: maybeForwardedSelector numArgs: numArgs receiver: maybeForwardedReceiver [
 	"Send from an Megamorphic IC when the first-level method lookup probe has failed,
-	 or to continue when PIC creation has failed (e.g. because we're out of code space),
+	 or to continue when Megamorphic IC creation has failed (e.g. because we're out of code space),
 	 or when a send has failed due to a forwarded receiver."
 
 	<api>
 	<flag: #workingSet>
-	| classTag classObj errSelIdx |
-	self assert: (objectMemory isNotForwarded: rcvr).
+	| rcvr selector classTag |
+	rcvr := maybeForwardedReceiver.
 	self assert: (objectMemory addressCouldBeOop: rcvr).
+	selector := maybeForwardedSelector.
 	classTag := objectMemory fetchClassTagOf: rcvr.
 	argumentCount := numArgs.
 
 	"If selector or receiver are forwarders, retry"
 	(objectMemory isOopForwarded: selector) ifTrue: [
-		| newSelector |
-		newSelector := self handleForwardedSelectorFaultFor: selector.
-		^ self
-			  ceSendFromInLineCacheMiss2: newSelector
-			  numArgs: numArgs
-			  receiver: rcvr ].
+		selector := self handleForwardedSelectorFaultFor: selector. ].
+	(objectMemory isForwardedClassTag: classTag) ifTrue: [
+		rcvr := self
+			handleForwardedSendFaultForReceiver: rcvr
+			rcvrStackOffsetFromTop: numArgs + 1. "skip return pc"
+		classTag := objectMemory fetchClassTagOf: rcvr ].
 
 	(self lookupInMethodCacheSel: selector classTag: classTag)
 		ifTrue: [ "check for coggability because method is in the cache"
 			self ifAppropriateCompileToNativeCode: newMethod selector: selector ]
 		ifFalse: [
+			| classObj errSelIdx |
 			messageSelector := selector.
 			classObj := objectMemory classForClassTag: classTag.
 			errSelIdx := self lookupMethodWithoutMNUProcessingInClass: classObj.
 			errSelIdx ~= 0 ifTrue: [
 				self handleMNU: errSelIdx InMachineCodeTo: rcvr classForMessage: classObj.
-				self unreachable ] ].
-
-	instructionPointer := self popStack.
-	(self maybeMethodHasCogMethod: newMethod) ifTrue: [
-		self executeNewMethod.
-		self unreachable ].
-	self interpretMethodFromMachineCode.
-	self unreachable
-]
-
-{ #category : 'trampolines' }
-CoInterpreter >> ceSendFromInLineCacheMiss: cogMethodOrPICAddress [
-	"Send from an Megamorphic IC when the first-level method lookup probe has failed,
-	 or to continue when PIC creation has failed (e.g. because we're out of code space),
-	 or when a send has failed due to a forwarded receiver."
-
-	<api>
-	<var: #cogMethodOrPICAddress type: #'CogMethod *'>
-	<var: #cogMethodOrPIC type: #'CogMethod *'>
-	| cogMethodOrPIC numArgs rcvr classTag classObj errSelIdx |
-	cogMethodOrPIC := self cCoerceSimple: cogMethodOrPICAddress to: #'CogMethod *'.
-	numArgs := cogMethodOrPIC cmNumArgs.
-	rcvr := self stackValue: numArgs + 1. "skip return pc"
-	self assert: (objectMemory addressCouldBeOop: rcvr).
-	classTag := objectMemory fetchClassTagOf: rcvr.
-	argumentCount := numArgs.
-
-	"If selector or receiver are forwarders, retry"
-	(objectMemory isOopForwarded: cogMethodOrPIC selector) ifTrue: [
-		cogit
-			setSelectorOf: cogMethodOrPIC
-			to: (self handleForwardedSelectorFaultFor: cogMethodOrPIC selector).
-		^ self ceSendFromInLineCacheMiss: cogMethodOrPIC ].
-	(objectMemory isForwardedClassTag: classTag) ifTrue: [
-		self
-			handleForwardedSendFaultForReceiver: rcvr
-			rcvrStackOffsetFromTop: numArgs + 1. "skip return pc"
-		^ self ceSendFromInLineCacheMiss: cogMethodOrPIC ].
-
-	(self
-		 lookupInMethodCacheSel: cogMethodOrPIC selector
-		 classTag: classTag)
-		ifTrue: [ "check for coggability because method is in the cache"
-			self
-				ifAppropriateCompileToNativeCode: newMethod
-				selector: cogMethodOrPIC selector ]
-		ifFalse: [
-			messageSelector := cogMethodOrPIC selector.
-			classObj := objectMemory classForClassTag: classTag.
-			(errSelIdx := self lookupMethodWithoutMNUProcessingInClass:
-				              classObj) ~= 0 ifTrue: [
-				self
-					handleMNU: errSelIdx
-					InMachineCodeTo: rcvr
-					classForMessage: classObj.
 				self unreachable ] ].
 
 	instructionPointer := self popStack.
@@ -3074,8 +3021,6 @@ CoInterpreter >> handleUnlinkedSendFor: icTable to: receiver isSuper: isSuper cl
 		self unreachable ].
 
 	cogMethod := self cogMethodOf: newMethod.
-	cogMethod selector = objectMemory nilObject ifTrue: [
-		cogit setSelectorOf: cogMethod to: selector ].
 	cogit
 		transitionToMonomorphicSend: icTable
 		cacheTag: classTag

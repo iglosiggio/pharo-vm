@@ -7,9 +7,7 @@ Class {
 		'callerAddress',
 		'registerValue',
 		'opcodes',
-		'stackMemory',
 		'stackMemoryStartAddress',
-		'stackMemoryEndAddress',
 		'isa',
 		'obj',
 		'selectorIndex',
@@ -17,12 +15,12 @@ Class {
 		'sendTrampolineAddress',
 		'sentSelector',
 		'selectorAtIndex',
-		'inlineCacheMissTrampoline',
 		'machineSimulator',
 		'send1TrampolineAddress',
 		'send2TrampolineAddress',
 		'send3TrampolineAddress',
-		'cogInitialAddress'
+		'cogInitialAddress',
+		'megamorphicICMissTrampoline'
 	],
 	#pools : [
 		'CogAbstractRegisters',
@@ -834,7 +832,7 @@ VMSimpleStackBasedCogitAbstractTest >> setUpCogMethodEntry [
 	self setUpTrampolines.
 	
 	"This is the function a megamorphic PIC will jump when there is a miss"
-	inlineCacheMissTrampoline := cogit simulatedAddressFor: #ceSendFromInLineCacheMiss:.
+	megamorphicICMissTrampoline := cogit simulatedAddressFor: #ceSendFromInLineCacheMiss:numArgs:receiver:.
 	
 	cogit computeEntryOffsets.
 	
