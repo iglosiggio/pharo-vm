@@ -5356,8 +5356,7 @@ Cogit >> configurePolymorphicSendCase: icTable entryIndex: entryIndex cacheTag: 
 	self assert: (self isPolymorphicICTable: icTable).
 	self assert: (entryIndex between: 0 and: ICCacheEntryCount - 1).
 	"self assert: (objectMemory isValidClassTag: cacheTag)."
-	self assert: ((objectMemory isCompiledMethod: aMethodOop) or: [
-			 aMethodOop = objectMemory nilObject ]).
+	self assert: (objectMemory addressCouldBeOop: aMethodOop).
 	"self assert: ((methodZone methodFor: handler) ~= 0 or: [
 			 (self codeEntryFor: handler) isNotNil ])."
 
