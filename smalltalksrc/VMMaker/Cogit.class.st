@@ -11052,28 +11052,19 @@ Cogit >> unlinkSendsLinkedForInvalidClasses [
 
 	<api>
 	<flag: #workingSet>
-	<flag: #review> "Should not modify code!"
 	<option: #SpurObjectMemory>
 	<var: #cogMethod type: #'CogMethod *'>
 	| cogMethod |
 	methodZoneBase ifNil: [ ^ self ].
 
-	self
-		enableCodeZoneWriteDuring: [
-			cogMethod := self cCoerceSimple: methodZoneBase to: #'CogMethod *'.
-			codeModified := false.
-			[ cogMethod < methodZone limitZony ] whileTrue: [
-				cogMethod cmType = CMMethod ifTrue: [
-					self
-						mapFor: cogMethod
-						performUntil: #unlinkIfInvalidClassSend:pc:ignored:
-						arg: 0 ].
-				cogMethod := methodZone methodAfter: cogMethod ] ]
-		flushingCacheWith: [
-			codeModified ifTrue: [ "After possibly updating inline caches we need to flush the icache."
-				self
-					flushICacheFrom: methodZoneBase asUnsignedInteger
-					to: methodZone limitZony asUnsignedInteger ] ]
+	cogMethod := self cCoerceSimple: methodZoneBase to: #'CogMethod *'.
+	[ cogMethod < methodZone limitZony ] whileTrue: [
+		cogMethod cmType = CMMethod ifTrue: [
+		self
+			mapFor: cogMethod
+			performUntil: #unlinkIfInvalidClassSend:pc:ignored:
+			arg: 0 ].
+		cogMethod := methodZone methodAfter: cogMethod ]
 ]
 
 { #category : 'jit - api' }
