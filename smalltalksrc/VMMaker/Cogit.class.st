@@ -8839,30 +8839,10 @@ Cogit >> markLiterals: annotation pc: mcpc method: cogMethod [
 
 	<flag: #workingSet>
 	<var: #mcpc type: #'char *'>
-	annotation = IsObjectReference ifTrue: [
+	(annotation = IsObjectReference or: [ self isSendAnnotation: annotation ]) ifTrue: [
 		(objectRepresentation
 			 markAndTraceLiteralIn: (self cCoerceSimple: cogMethod to: #'CogMethod *')
 			 atpc: mcpc asUnsignedInteger) ifTrue: [ codeModified := true ] ].
-
-	(self isSendAnnotation: annotation) ifTrue: [
-		| icTable selector |
-		(objectRepresentation
-			 markAndTraceLiteralIn: (self cCoerceSimple: cogMethod to: #'CogMethod *')
-			 atpc: mcpc asUnsignedInteger) ifTrue: [ codeModified := true ].
-		icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
-		self assertValidICTable: icTable duringGC: true.
-
-		"We have to manually mark the selector because the ICTable is opaque (just a byte array)"
-		selector := objectMemory fetchSelectorOfTable: icTable.
-		(objectMemory isOopForwarded: selector) ifTrue: [
-			selector := objectMemory followForwarded: selector.
-			objectMemory storeSelectorOfTable: icTable with: selector.
-			(objectMemory isYoung: selector) ifTrue: [
-				methodZone ensureInYoungReferrers: cogMethod ] ].
-		objectRepresentation markAndTraceLiteral: selector.
-
-		(self isPolymorphicICTable: icTable) ifTrue: [
-			self markAndTraceOopsInPolymorphicICTable: icTable from: cogMethod ] ].
 
 	^ 0 "keep scanning"
 ]
@@ -8880,21 +8860,12 @@ Cogit >> markLiteralsAndUnlinkIfUnmarkedSend: annotation pc: mcpc method: cogMet
 			 atpc: mcpc asUnsignedInteger) ifTrue: [ codeModified := true ] ].
 
 	(self isSendAnnotation: annotation) ifTrue: [
-		| icTable selector |
+		| icTable |
 		(objectRepresentation
 			 markAndTraceLiteralIn: (self cCoerceSimple: cogMethod to: #'CogMethod *')
 			 atpc: mcpc asUnsignedInteger) ifTrue: [ codeModified := true ].
 		icTable := self fetchLiteralAtAnnotatedAddress: mcpc.
 		self assertValidICTable: icTable duringGC: true.
-
-		"We have to manually mark the selector because the ICTable is opaque (just a byte array)"
-		selector := objectMemory fetchSelectorOfTable: icTable.
-		(objectMemory isOopForwarded: selector) ifTrue: [
-			selector := objectMemory followForwarded: selector.
-			objectMemory storeSelectorOfTable: icTable with: selector.
-			(objectMemory isYoung: selector) ifTrue: [
-				methodZone ensureInYoungReferrers: cogMethod ] ].
-		objectRepresentation markAndTraceLiteral: selector.
 
 		self
 			unlinkSendTargetsOf: icTable
@@ -8902,10 +8873,7 @@ Cogit >> markLiteralsAndUnlinkIfUnmarkedSend: annotation pc: mcpc method: cogMet
 			if: [ :tag :operand :value | "
 				We mark and trace linked methods. If they end up freed we unlink them"
 				(methodZone isInMethodZone: value) and: [
-					self markAndTraceOrFreeCogMethod: value from: cogMethod ] ].
-
-		(self isPolymorphicICTable: icTable) ifTrue: [
-			self markAndTraceOopsInPolymorphicICTable: icTable from: cogMethod ] ].
+					self markAndTraceOrFreeCogMethod: value from: cogMethod ] ] ].
 
 	^ 0 "keep scanning"
 ]
@@ -8948,26 +8916,10 @@ Cogit >> markYoungObjects: annotation pc: mcpc method: cogMethod [
 
 	<flag: #workingSet>
 	<var: #mcpc type: #'char *'>
-	annotation = IsObjectReference ifTrue: [
+	(annotation = IsObjectReference or: [ self isSendAnnotation: annotation ]) ifTrue: [
 		| literal |
 		literal := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
 		objectRepresentation markAndTraceLiteralIfYoung: literal ].
-
-	(self isSendAnnotation: annotation) ifTrue: [
-		| icTable selector |
-		icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
-		objectRepresentation markAndTraceLiteralIfYoung: icTable.
-		self assertValidICTable: icTable duringGC: true.
-		"The ICTable is an opaque object. We should mark the selector by hand"
-		selector := objectMemory fetchSelectorOfTable: icTable.
-		"We have to manually mark the selector because the ICTable is opaque (just a byte array)"
-		objectMemory markAndTraceLiteralIfYoung: selector.
-
-		(self isPolymorphicICTable: icTable) ifTrue: [
-			0 to: ICCacheEntryCount - 1 do: [ :i |
-				| operand |
-				operand := objectMemory fetchCacheOperand: i ofTable: icTable.
-				objectMemory markAndTraceLiteralIfYoung: operand ] ] ].
 
 	^ 0 "keep scanning"
 ]
@@ -10203,7 +10155,7 @@ Cogit >> remapIfObjectRef: annotation pc: mcpc hasYoung: hasYoungPtr [
 
 	<flag: #workingSet>
 	<var: #mcpc type: #'char *'>
-	annotation = IsObjectReference ifTrue: [
+	(annotation = IsObjectReference or: [ (self isSendAnnotation: annotation) ]) ifTrue: [
 		| literal mappedLiteral |
 		literal := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
 		(objectRepresentation couldBeObject: literal) ifTrue: [
@@ -10212,39 +10164,6 @@ Cogit >> remapIfObjectRef: annotation pc: mcpc hasYoung: hasYoungPtr [
 				self storeLiteral: mappedLiteral atAnnotatedAddress: mcpc asUnsignedInteger.
 				codeModified := true ].
 			(hasYoungPtr ~= 0 and: [ objectMemory isYoung: mappedLiteral ]) ifTrue: [
-				(self cCoerceSimple: hasYoungPtr to: #'sqInt *') at: 0 put: true ] ] ].
-
-	(self isSendAnnotation: annotation) ifTrue: [
-		| icTable mappedIcTable selector mappedSelector |
-		icTable := self fetchLiteralAtAnnotatedAddress: mcpc asUnsignedInteger.
-		mappedIcTable := objectRepresentation remapObject: icTable.
-		icTable ~= mappedIcTable ifTrue: [
-			self storeLiteral: mappedIcTable atAnnotatedAddress: mcpc asUnsignedInteger.
-			codeModified := true ].
-		(hasYoungPtr ~= 0 and: [ objectMemory isYoung: mappedIcTable ]) ifTrue: [
-			(self cCoerceSimple: hasYoungPtr to: #'sqInt *') at: 0 put: true ].
-		objectMemory scavengeInProgress ifTrue: [ "
-			During a scavenge the data is moved to the mapped object.
-			Otherwise the data is still on the original place"
-			icTable := mappedIcTable ].
-
-		selector := objectRepresentation fetchSelectorOfTable: icTable.
-		mappedSelector := objectMemory remapObject: selector.
-		selector ~= mappedSelector ifTrue: [
-			objectRepresentation storeSelectorOfTable: icTable with: mappedSelector ].
-		(hasYoungPtr ~= 0 and: [ objectMemory isYoung: mappedSelector ]) ifTrue: [
-			(self cCoerceSimple: hasYoungPtr to: #'sqInt *') at: 0 put: true ].
-
-		0 to: ICCacheEntryCount - 1 do: [ :i |
-			| operand mappedOperand |
-			operand := objectMemory fetchCacheOperand: i ofTable: icTable.
-			mappedOperand := objectRepresentation remapObject: operand.
-			operand ~= mappedOperand ifTrue: [
-				objectRepresentation
-					storeCacheOperand: i
-					ofTable: icTable
-					with: mappedOperand ].
-			(hasYoungPtr ~= 0 and: [ objectMemory isYoung: mappedOperand ]) ifTrue: [
 				(self cCoerceSimple: hasYoungPtr to: #'sqInt *') at: 0 put: true ] ] ].
 
 	^ 0 "keep scanning"
@@ -10945,8 +10864,6 @@ Cogit >> transitionToMegamorphicSend: icTable usingStub: megamorphicStub [
 
 	<flag: #workingSet>
 	<api>
-	"self assert: ((self isMonomorphicICTable: icTable) or: [ self isMegamorphicICTable: icTable ])"
-
 	objectMemory
 		storeHandlerOfTable: icTable
 		with: megamorphicStub asUnsignedInteger + cmEntryOffset.
@@ -10974,7 +10891,6 @@ Cogit >> transitionToPolymorphicSend: icTable numArgs: numArgs [
 
 	<flag: #workingSet>
 	<api>
-	"self assert: ((self isMonomorphicICTable: icTable) or: [ self isPolymorphicSend: icTable ])"
 	objectMemory
 		storeHandlerOfTable: icTable
 		with: (self polymorphicSendFor: numArgs).

@@ -2347,16 +2347,18 @@ SimpleStackBasedCogit >> genSend: selectorIndex numArgs: numArgs sendTable: send
 	<var: #sendTable type: #'sqInt *'>
 	<story: #pic>
 	<flag: #workingSet>
-	| annotation icTable selectorOop |
+	| annotation icTable handler selectorOop |
 	self assert: needsFrame.
 
 	selectorOop := selectorIndex < 0
 		               ifTrue: [ coInterpreter specialSelector: -1 - selectorIndex ]
 		               ifFalse: [ self getLiteral: selectorIndex ].
+
+	handler := sendTable at: (numArgs min: NumSendTrampolines - 1).
 	icTable := objectMemory
 		           allocateICTable: selectorOop
-		           withUnlinkedHandler:
-		           (sendTable at: (numArgs min: NumSendTrampolines - 1)).
+		           withUnlinkedHandler: handler
+		           numArgs: numArgs.
 	icTable ifNil: [ ^ InsufficientCodeSpace ].
 	(objectMemory isYoung: icTable) ifTrue: [ hasYoungReferent := true ].
 	(objectMemory isYoung: selectorOop) ifTrue: [ hasYoungReferent := true ].

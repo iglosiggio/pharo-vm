@@ -1911,21 +1911,23 @@ SpurMemoryManager >> allocateClassTable [
 ]
 
 { #category : 'ic tables' }
-SpurMemoryManager >> allocateICTable: selectorOop withUnlinkedHandler: unlinkedTrampoline [
+SpurMemoryManager >> allocateICTable: selectorOop withUnlinkedHandler: unlinkedTrampoline numArgs: numArgs [
 
 	<flag: #workingSet>
 	<api>
-	| tableSlotCount result |
+	| tableSlotCount format result |
 	self assert: (self addressCouldBeOop: selectorOop).
 
 	tableSlotCount := ICSlotCount.
 
+	format := self compiledMethodFormatForNumBytes: tableSlotCount * self bytesPerOop.
 	result := self
 		          allocateSlots: tableSlotCount
-		          format:
-		          (self byteFormatForNumBytes: tableSlotCount * self bytesPerOop)
-		          classIndex: ClassByteArrayCompactIndex.
+		          format: format
+		          classIndex: self arrayClassIndexPun.
+
 	result ifNotNil: [
+		self storeHeaderOfTable: result numArgs: numArgs.
 		self storeSelectorOfTable: result with: selectorOop.
 		self storeHandlerOfTable: result with: unlinkedTrampoline.
 		self clearAllICTableEntries: result ].
@@ -12948,6 +12950,24 @@ SpurMemoryManager >> storeHandlerOfTable: icTable with: aHandler [
 		storePointer: ICHandlerIndex
 		ofObject: icTable
 		withValue: aHandler
+]
+
+{ #category : 'ic tables' }
+SpurMemoryManager >> storeHeaderOfTable: icTable numArgs: numArgs [
+
+	<api>
+	| header |
+	"See IRBytecodeGenerator>>#spurVMHeader:"
+	header :=
+		"     encoder" (0 "no encoder") +
+		"     numArgs" (numArgs bitShift: 24) +
+		"    numTemps" (0 bitShift: 18) +
+		"hasPrimitive" (0 bitShift: 16) +
+		" numLiterals" (1 "selector" + ICCacheEntryCount "operands").
+	self
+		storePointer: ICHeaderIndex
+		ofObject: icTable
+		withValue: (self integerObjectOf: header)
 ]
 
 { #category : 'simulation only' }
