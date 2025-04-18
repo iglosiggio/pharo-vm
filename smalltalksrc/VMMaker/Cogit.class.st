@@ -269,6 +269,7 @@ Class {
 		'MaxCompiledPrimitiveIndex',
 		'MaxNumberOfAbstractOpcodes',
 		'MaxX2NDisplacement',
+		'NumInlineCacheStubs',
 		'NumObjRefsInRuntime',
 		'NumSpecialSelectors',
 		'NumTrampolines',
@@ -831,6 +832,8 @@ Cogit class >> initializeMiscConstants [
 
 { #category : 'class initialization' }
 Cogit class >> initializeNumTrampolines [
+
+	NumInlineCacheStubs := 50.
 	NumTrampolines := self numTrampolines
 						+ self objectRepresentationClass numTrampolines
 						+ (BytecodeSetHasDirectedSuperSend ifTrue: [NumSendTrampolines * 2] ifFalse: [0])
@@ -1226,9 +1229,10 @@ Cogit class >> notesAndQueries [
 
 { #category : 'accessing' }
 Cogit class >> numTrampolines [
-	^39 + 12 "31 + 4 each for self and super sends"
-
-	"self withAllSubclasses collect: [:c| {c. (c instVarNames select: [:ea| ea beginsWith: 'ce']) size}]"
+	| normalSendStubsVariants superSendStubsVariants |
+	normalSendStubsVariants := 4.
+	superSendStubsVariants := 4.
+	^31 + (normalSendStubsVariants * NumInlineCacheStubs) + (superSendStubsVariants * NumInlineCacheStubs) + 12
 ]
 
 { #category : 'translation' }
@@ -9442,7 +9446,7 @@ Cogit >> picInterpretAbortOffset [
 Cogit >> polymorphicSendFor: numArgs [
 
 	<flag: #workingSet>
-	^ polymorphicSendTrampolines at: (numArgs min: self numRegArgs + 1)
+	^ polymorphicSendTrampolines at: ((numArgs min: self numRegArgs + 1) * NumInlineCacheStubs)
 ]
 
 { #category : 'in-line cacheing' }
@@ -10308,7 +10312,7 @@ Cogit >> sendTrampolineTable: sendTable includes: handler [
 
 	<var: #sendTable type: #'sqInt *'>
 	0 to: NumSendTrampolines - 1 do: [ :i |
-	handler = (sendTable at: i) ifTrue: [ ^ true ] ].
+		handler = (sendTable at: i) ifTrue: [ ^ true ] ].
 	^ false
 ]
 
@@ -10395,7 +10399,7 @@ Cogit >> setInterpreter: aCoInterpreter [
 			                                       (Array new:
 				                                        NumSendTrampolines).
 		directedSendUsesBinding := false ].
-	polymorphicSendTrampolines := CArrayAccessor on: (Array new: NumSendTrampolines).
+	polymorphicSendTrampolines := CArrayAccessor on: (Array new: NumSendTrampolines * NumInlineCacheStubs).
 	polymorphicSendMNUTrampolines := CArrayAccessor on: (Array new: NumSendTrampolines).
 	polymorphicSendInterpretTrampolines := CArrayAccessor on: (Array new: NumSendTrampolines).
 	"debug metadata"
@@ -10694,20 +10698,6 @@ Cogit >> singleStep [
 Cogit >> singleStep: aBoolean [
 	<doNotGenerate>
 	singleStep := aBoolean
-]
-
-{ #category : 'debugging' }
-Cogit >> sizeOfTrampoline: address [
-
-	<api>
-	<returnTypeC: #int>
-	<var: #address type: #'char *'>
-	0 to: trampolineTableIndex - 3 by: 2 do: [ :i | 
-		address = (trampolineAddresses at: i + 1) ifTrue: [ 
-			[ i + 3 > NumTrampolines * 2 ] ifTrue: [ 
-				^ self methodZoneBase - (trampolineAddresses at: i + 1) asInteger ].
-			^ (trampolineAddresses at: i + 3) asInteger - (trampolineAddresses at: i + 1) asInteger ] ].
-	^ 0
 ]
 
 { #category : 'translation support' }

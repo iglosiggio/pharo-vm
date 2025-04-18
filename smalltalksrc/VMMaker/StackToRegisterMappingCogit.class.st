@@ -437,9 +437,6 @@ StackToRegisterMappingCogit class >> numPushNilsFunction [
 { #category : 'accessing' }
 StackToRegisterMappingCogit class >> numTrampolines [
 	^super numTrampolines + 12 "includes register args aborts"
-
-	"Cogit withAllSubclasses collect: [:c| {c. (c instVarNames select: [:ea| ea beginsWith: 'ce']) size}]"
-	"self instVarNames select: [:ea| ea beginsWith: 'ce']"
 ]
 
 { #category : 'accessing' }
@@ -3116,9 +3113,11 @@ StackToRegisterMappingCogit >> generatePolymorphicSendTrampolines [
 
 	<flag: #workingSet>
 	0 to: self numRegArgs + 1 do: [ :numArgs |
-		polymorphicSendTrampolines
-			at: numArgs
-			put: (self genPolymorphicSendTrampoline: numArgs) ].
+		0 to: NumInlineCacheStubs do: [ :stub |
+			polymorphicSendTrampolines
+				at: stub + (numArgs * NumInlineCacheStubs)
+				put: (self genPolymorphicSendTrampoline: numArgs)
+			] ].
 	0 to: self numRegArgs + 1 do: [ :numArgs |
 		polymorphicSendMNUTrampolines
 			at: numArgs
