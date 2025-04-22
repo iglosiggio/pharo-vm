@@ -271,7 +271,11 @@ Class {
 		'MaxCompiledPrimitiveIndex',
 		'MaxNumberOfAbstractOpcodes',
 		'MaxX2NDisplacement',
-		'NumInlineCacheStubs',
+		'NumInlineCacheStubs0Args',
+		'NumInlineCacheStubs1Args',
+		'NumInlineCacheStubs2Args',
+		'NumInlineCacheStubsMoreArgs',
+		'NumInlineCacheStubsTotal',
 		'NumObjRefsInRuntime',
 		'NumSpecialSelectors',
 		'NumTrampolines',
@@ -837,7 +841,11 @@ Cogit class >> initializeMiscConstants [
 { #category : 'class initialization' }
 Cogit class >> initializeNumTrampolines [
 
-	NumInlineCacheStubs := 10.
+	NumInlineCacheStubs0Args := 200.
+	NumInlineCacheStubs1Args := 200.
+	NumInlineCacheStubs2Args := 30.
+	NumInlineCacheStubsMoreArgs := 30.
+	NumInlineCacheStubsTotal := NumInlineCacheStubs0Args + NumInlineCacheStubs1Args + NumInlineCacheStubs2Args + NumInlineCacheStubsMoreArgs.
 	NumTrampolines := self numTrampolines
 						+ self objectRepresentationClass numTrampolines
 						+ (BytecodeSetHasDirectedSuperSend ifTrue: [NumSendTrampolines * 2] ifFalse: [0])
@@ -1233,10 +1241,11 @@ Cogit class >> notesAndQueries [
 
 { #category : 'accessing' }
 Cogit class >> numTrampolines [
+
 	| normalSendStubsVariants superSendStubsVariants |
 	normalSendStubsVariants := 4.
 	superSendStubsVariants := 4.
-	^31 + (normalSendStubsVariants * NumInlineCacheStubs) + (superSendStubsVariants * NumInlineCacheStubs) + 12
+	^ 31 + NumInlineCacheStubsTotal + superSendStubsVariants + 12
 ]
 
 { #category : 'translation' }
@@ -7835,7 +7844,7 @@ Cogit >> initialize [
 											ifTrue: [CogMethodSurrogate32]
 											ifFalse: [CogMethodSurrogate64].	
 	nextPolymorphicStub := 0.
-	maxPolymorphicStubs := NumInlineCacheStubs.
+	maxPolymorphicStubs := 1.
 	statCompileFullBlockCount := 0.
 	statCompileFullBlockUsecs := 0.
 	statCompileMethodCount := 0.
@@ -9452,8 +9461,28 @@ Cogit >> picInterpretAbortOffset [
 Cogit >> polymorphicSendFor: numArgs [
 
 	<flag: #workingSet>
-	nextPolymorphicStub := (nextPolymorphicStub + 1) \\ maxPolymorphicStubs.
-	^ polymorphicSendTrampolines at: ((numArgs min: self numRegArgs + 1) * NumInlineCacheStubs) + nextPolymorphicStub
+	
+	| start maxPolymorphicStubsPerArity trampolineKind |
+	start := 0.
+	maxPolymorphicStubsPerArity := NumInlineCacheStubs0Args.
+	
+	trampolineKind := numArgs min: self numRegArgs + 1.
+	trampolineKind > 0 ifTrue: [
+		start := start + NumInlineCacheStubs0Args.
+		maxPolymorphicStubsPerArity := NumInlineCacheStubs1Args.
+	].
+	trampolineKind > 1 ifTrue: [
+		start := start + NumInlineCacheStubs1Args.
+		maxPolymorphicStubsPerArity := NumInlineCacheStubs2Args.
+	].
+	trampolineKind > 2 ifTrue: [
+		start := start + NumInlineCacheStubs2Args.
+		maxPolymorphicStubsPerArity := NumInlineCacheStubsMoreArgs.
+	].
+	
+	nextPolymorphicStub := (nextPolymorphicStub + 1) \\ (maxPolymorphicStubsPerArity min: maxPolymorphicStubs).
+	
+	^ polymorphicSendTrampolines at: start + nextPolymorphicStub
 ]
 
 { #category : 'in-line cacheing' }
@@ -10320,7 +10349,7 @@ Cogit >> sendTrampolineTable: sendTable includes: handler [
 	<var: #sendTable type: #'sqInt *'>
 	| limit |
 	sendTable = polymorphicSendTrampolines
-		ifTrue: [ limit := NumSendTrampolines * NumInlineCacheStubs - 1 ]
+		ifTrue: [ limit := NumInlineCacheStubsTotal - 1 ]
 		ifFalse: [ limit := NumSendTrampolines - 1 ].
 
 	0 to: limit do: [ :i |
@@ -10411,7 +10440,7 @@ Cogit >> setInterpreter: aCoInterpreter [
 			                                       (Array new:
 				                                        NumSendTrampolines).
 		directedSendUsesBinding := false ].
-	polymorphicSendTrampolines := CArrayAccessor on: (Array new: NumSendTrampolines * NumInlineCacheStubs).
+	polymorphicSendTrampolines := CArrayAccessor on: (Array new: NumInlineCacheStubsTotal).
 	polymorphicSendMNUTrampolines := CArrayAccessor on: (Array new: NumSendTrampolines).
 	polymorphicSendInterpretTrampolines := CArrayAccessor on: (Array new: NumSendTrampolines).
 	"debug metadata"
@@ -10443,8 +10472,8 @@ Cogit >> setMaxPolymorphicStubs: requestedMaxPolymorphicStubs [
 	<api>
 	<var: #requestedMaxPolymorphicStubs type: #uint8_t>
 	requestedMaxPolymorphicStubs = 0
-		ifTrue: [ maxPolymorphicStubs := NumInlineCacheStubs ]
-		ifFalse: [ maxPolymorphicStubs := NumInlineCacheStubs max: requestedMaxPolymorphicStubs ]
+		ifTrue: [ maxPolymorphicStubs := NumInlineCacheStubs0Args ]
+		ifFalse: [ maxPolymorphicStubs := NumInlineCacheStubs0Args max: requestedMaxPolymorphicStubs ]
 ]
 
 { #category : 'jit - api' }

@@ -3112,12 +3112,30 @@ StackToRegisterMappingCogit >> generatePolymorphicSendTrampolines [
 	"Generate the run-time entries for the various polymorphic send stubs"
 
 	<flag: #workingSet>
-	0 to: self numRegArgs + 1 do: [ :numArgs |
-		0 to: NumInlineCacheStubs - 1 do: [ :stub |
+	0 to: NumInlineCacheStubs0Args - 1 do: [ :stub |
+		polymorphicSendTrampolines
+			at: stub
+			put: (self genPolymorphicSendTrampoline: 0)
+	].
+	NumInlineCacheStubs0Args to: NumInlineCacheStubs0Args + NumInlineCacheStubs1Args - 1 do: [ :stub |
+		polymorphicSendTrampolines
+			at: stub
+			put: (self genPolymorphicSendTrampoline: 1)
+	].
+	NumInlineCacheStubs1Args to: NumInlineCacheStubs0Args + NumInlineCacheStubs1Args + NumInlineCacheStubs2Args - 1 do: [ :stub |
+		polymorphicSendTrampolines
+			at: stub
+			put: (self genPolymorphicSendTrampoline: 2)
+	].
+	NumInlineCacheStubs2Args to: NumInlineCacheStubs0Args 
+		+ NumInlineCacheStubs1Args 
+		+ NumInlineCacheStubs2Args 
+		+ NumInlineCacheStubsMoreArgs - 1 do: [ :stub |
 			polymorphicSendTrampolines
-				at: stub + (numArgs * NumInlineCacheStubs)
-				put: (self genPolymorphicSendTrampoline: numArgs)
-			] ].
+				at: stub
+				put: (self genPolymorphicSendTrampoline: 1)
+	].
+
 	0 to: self numRegArgs + 1 do: [ :numArgs |
 		polymorphicSendMNUTrampolines
 			at: numArgs
