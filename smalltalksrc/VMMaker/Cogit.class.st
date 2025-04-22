@@ -497,11 +497,13 @@ Cogit class >> declareCVarsIn: aCCodeGenerator [
 		var: #superSendTrampolines
 		declareC: 'sqInt superSendTrampolines[NumSendTrampolines]';
 		var: #polymorphicSendTrampolines
-		declareC: 'sqInt polymorphicSendTrampolines[NumSendTrampolines]';
+		declareC: 'sqInt polymorphicSendTrampolines[NumSendTrampolines * NumInlineCacheStubs]';
 		var: #polymorphicSendInterpretTrampolines
 		declareC: 'sqInt polymorphicSendInterpretTrampolines[NumSendTrampolines]';
 		var: #polymorphicSendMNUTrampolines
-		declareC: 'sqInt polymorphicSendMNUTrampolines[NumSendTrampolines]'.
+		declareC: 'sqInt polymorphicSendMNUTrampolines[NumSendTrampolines]';
+		var: #maxPolymorphicStubs
+		declareC: 'uint8_t maxPolymorphicStubs = 1 /* Use one polymorphic stub by default */'.
 	BytecodeSetHasDirectedSuperSend ifTrue: [
 		aCCodeGenerator
 			var: #directedSuperSendTrampolines
@@ -10316,8 +10318,13 @@ Cogit >> sendTrace: aBooleanOrInteger [
 Cogit >> sendTrampolineTable: sendTable includes: handler [
 
 	<var: #sendTable type: #'sqInt *'>
-	0 to: NumSendTrampolines - 1 do: [ :i |
-		handler = (sendTable at: i) ifTrue: [ ^ true ] ].
+	| limit |
+	sendTable = polymorphicSendTrampolines
+		ifTrue: [ limit := NumSendTrampolines * NumInlineCacheStubs - 1 ]
+		ifFalse: [ limit := NumSendTrampolines - 1 ].
+
+	0 to: limit do: [ :i |
+	handler = (sendTable at: i) ifTrue: [ ^ true ] ].
 	^ false
 ]
 
@@ -10434,7 +10441,7 @@ Cogit >> setInterpreter: aCoInterpreter [
 Cogit >> setMaxPolymorphicStubs: requestedMaxPolymorphicStubs [
 
 	<api>
-	<var: #requestedMaxPolymorphicStubs type: #uint8_t>
+	<var: #bytes type: #uint8_t>
 	requestedMaxPolymorphicStubs = 0
 		ifTrue: [ maxPolymorphicStubs := NumInlineCacheStubs ]
 		ifFalse: [ maxPolymorphicStubs := NumInlineCacheStubs max: requestedMaxPolymorphicStubs ]

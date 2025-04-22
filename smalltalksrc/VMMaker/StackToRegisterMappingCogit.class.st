@@ -3113,7 +3113,7 @@ StackToRegisterMappingCogit >> generatePolymorphicSendTrampolines [
 
 	<flag: #workingSet>
 	0 to: self numRegArgs + 1 do: [ :numArgs |
-		0 to: NumInlineCacheStubs do: [ :stub |
+		0 to: NumInlineCacheStubs - 1 do: [ :stub |
 			polymorphicSendTrampolines
 				at: stub + (numArgs * NumInlineCacheStubs)
 				put: (self genPolymorphicSendTrampoline: numArgs)
