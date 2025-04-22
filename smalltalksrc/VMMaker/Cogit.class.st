@@ -10441,7 +10441,7 @@ Cogit >> setInterpreter: aCoInterpreter [
 Cogit >> setMaxPolymorphicStubs: requestedMaxPolymorphicStubs [
 
 	<api>
-	<var: #bytes type: #uint8_t>
+	<var: #requestedMaxPolymorphicStubs type: #uint8_t>
 	requestedMaxPolymorphicStubs = 0
 		ifTrue: [ maxPolymorphicStubs := NumInlineCacheStubs ]
 		ifFalse: [ maxPolymorphicStubs := NumInlineCacheStubs max: requestedMaxPolymorphicStubs ]
