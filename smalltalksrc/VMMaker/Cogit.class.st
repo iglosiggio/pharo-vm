@@ -501,7 +501,7 @@ Cogit class >> declareCVarsIn: aCCodeGenerator [
 		var: #superSendTrampolines
 		declareC: 'sqInt superSendTrampolines[NumSendTrampolines]';
 		var: #polymorphicSendTrampolines
-		declareC: 'sqInt polymorphicSendTrampolines[NumSendTrampolines * NumInlineCacheStubs]';
+		declareC: 'sqInt polymorphicSendTrampolines[NumInlineCacheStubsTotal]';
 		var: #polymorphicSendInterpretTrampolines
 		declareC: 'sqInt polymorphicSendInterpretTrampolines[NumSendTrampolines]';
 		var: #polymorphicSendMNUTrampolines
