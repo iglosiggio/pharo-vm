@@ -837,7 +837,7 @@ Cogit class >> initializeMiscConstants [
 { #category : 'class initialization' }
 Cogit class >> initializeNumTrampolines [
 
-	NumInlineCacheStubs := 50.
+	NumInlineCacheStubs := 10.
 	NumTrampolines := self numTrampolines
 						+ self objectRepresentationClass numTrampolines
 						+ (BytecodeSetHasDirectedSuperSend ifTrue: [NumSendTrampolines * 2] ifFalse: [0])
