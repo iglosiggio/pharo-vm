@@ -243,7 +243,9 @@ Class {
 		'jitCodeZoneWriteEnabled',
 		'polymorphicSendTrampolines',
 		'polymorphicSendMNUTrampolines',
-		'polymorphicSendInterpretTrampolines'
+		'polymorphicSendInterpretTrampolines',
+		'nextPolymorphicStub',
+		'maxPolymorphicStubs'
 	],
 	#classVars : [
 		'AnnotationConstantNames',
@@ -7830,6 +7832,8 @@ Cogit >> initialize [
 	cogMethodSurrogateClass := wordSize = 4
 											ifTrue: [CogMethodSurrogate32]
 											ifFalse: [CogMethodSurrogate64].	
+	nextPolymorphicStub := 0.
+	maxPolymorphicStubs := NumInlineCacheStubs.
 	statCompileFullBlockCount := 0.
 	statCompileFullBlockUsecs := 0.
 	statCompileMethodCount := 0.
@@ -9446,7 +9450,8 @@ Cogit >> picInterpretAbortOffset [
 Cogit >> polymorphicSendFor: numArgs [
 
 	<flag: #workingSet>
-	^ polymorphicSendTrampolines at: ((numArgs min: self numRegArgs + 1) * NumInlineCacheStubs)
+	nextPolymorphicStub := (nextPolymorphicStub + 1) \\ maxPolymorphicStubs.
+	^ polymorphicSendTrampolines at: ((numArgs min: self numRegArgs + 1) * NumInlineCacheStubs) + nextPolymorphicStub
 ]
 
 { #category : 'in-line cacheing' }
@@ -10423,6 +10428,16 @@ Cogit >> setInterpreter: aCoInterpreter [
 	debugBytecodePointers := self class initializationOptions
 		                         at: #debugBytecodePointers
 		                         ifAbsent: [ Set new ]
+]
+
+{ #category : 'initialization' }
+Cogit >> setMaxPolymorphicStubs: requestedMaxPolymorphicStubs [
+
+	<api>
+	<var: #requestedMaxPolymorphicStubs type: #uint8_t>
+	requestedMaxPolymorphicStubs = 0
+		ifTrue: [ maxPolymorphicStubs := NumInlineCacheStubs ]
+		ifFalse: [ maxPolymorphicStubs := NumInlineCacheStubs max: requestedMaxPolymorphicStubs ]
 ]
 
 { #category : 'jit - api' }
