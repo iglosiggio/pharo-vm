@@ -10473,7 +10473,7 @@ Cogit >> setMaxPolymorphicStubs: requestedMaxPolymorphicStubs [
 	<var: #requestedMaxPolymorphicStubs type: #uint8_t>
 	requestedMaxPolymorphicStubs = 0
 		ifTrue: [ maxPolymorphicStubs := NumInlineCacheStubs0Args ]
-		ifFalse: [ maxPolymorphicStubs := NumInlineCacheStubs0Args max: requestedMaxPolymorphicStubs ]
+		ifFalse: [ maxPolymorphicStubs := NumInlineCacheStubs0Args min: requestedMaxPolymorphicStubs ]
 ]
 
 { #category : 'jit - api' }
