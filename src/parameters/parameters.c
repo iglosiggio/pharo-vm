@@ -78,7 +78,9 @@ static VMErrorCode processWorkerOption(const char *argument, VMParameters * para
 static VMErrorCode processMinPermSpaceSizeOption(const char *argument, VMParameters * params);
 static VMErrorCode processStackPageSizeOption(const char *argument, VMParameters * params);
 static VMErrorCode processWorkingDirectory(const char *argument, VMParameters * params);
+static VMErrorCode processMaxPolymorphicStubs(const char *argument, VMParameters * params);
 static VMErrorCode processAvoidSearchingSegmentsWithPinnedObjects(const char *argument, VMParameters * params);
+
 
 static const VMParameterSpec vm_parameters_spec[] =
 {
@@ -98,6 +100,7 @@ static const VMParameterSpec vm_parameters_spec[] =
   {.name = "codeSize", .hasArgument = true, .function = processMaxCodeSpaceSizeOption},
   {.name = "edenSize", .hasArgument = true, .function = processEdenSizeOption},
   {.name = "minPermSpaceSize", .hasArgument = true, .function = processMinPermSpaceSizeOption},
+  {.name = "maxPolymorphicStubs", .hasArgument = true, .function = processMaxPolymorphicStubs},
 
   {.name = "workingDirectory", .hasArgument = true, .function = processWorkingDirectory},
 
@@ -527,6 +530,23 @@ processMaxOldSpaceSizeOption(const char* originalArgument, VMParameters * params
 	}
 	
 	params->maxOldSpaceSize = intValue ;
+
+	return VM_SUCCESS;
+}
+
+static VMErrorCode
+processMaxPolymorphicStubs(const char* originalArgument, VMParameters * params)
+{
+	intmax_t intValue = strtol(originalArgument, NULL, 10);
+
+	if(intValue < 0 || intValue > 255)
+	{
+		logError("Invalid option for processMaxPolymorphicStubs: %s\n", originalArgument);
+		vm_printUsageTo(stderr);
+		return VM_ERROR_INVALID_PARAMETER_VALUE;
+	}
+
+	params->maxPolymorphicStubs = intValue;
 
 	return VM_SUCCESS;
 }

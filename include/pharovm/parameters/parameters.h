@@ -61,6 +61,10 @@ typedef struct VMParameters_
 	// Does the clonning process avoid this search and allocate the clonned object anywhere?
 	// DEFAULT: false
 	bool avoidSearchingSegmentsWithPinnedObjects;
+	
+	// Max number of polymorphic stubs used at runtime.
+	// DEFAULT: 200
+	uint8_t maxPolymorphicStubs;
 
 	VMParameterVector vmParameters;
 	VMParameterVector imageParameters;

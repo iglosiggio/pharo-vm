@@ -4,6 +4,7 @@
 #include "pharovm/fileDialog.h"
 #include "pharovm/pathUtilities.h"
 
+extern void setMaxPolymorphicStubs(uint8_t anInteger);
 extern void setMaxStacksToPrint(sqInt anInteger);
 extern sqInt setMaxOldSpaceSize(usqInt limit);
 extern void setDesiredCogCodeSize(sqInt anInteger);
@@ -67,6 +68,7 @@ EXPORT(int) vm_init(VMParameters* parameters)
 #endif
 
 	ioInitExternalSemaphores();
+	setMaxPolymorphicStubs(parameters->maxPolymorphicStubs);
 	setMaxStacksToPrint(parameters->maxStackFramesToPrint);
 	setMaxOldSpaceSize(parameters->maxOldSpaceSize);
 	setDesiredEdenBytes(parameters->edenSize);
