@@ -1077,6 +1077,7 @@ CogOutOfLineLiteralsRiscV64Compiler >> computeMaximumSize [
 				
 			"Control"
 			([ Call ]                 -> [ ^ self callInstructionByteSize ]).
+			([ CallR ]                -> [ ^ 4 ]).
 			([ CallFull ]             -> [ ^ self literalLoadInstructionBytes + 4 ]).
 			([ JumpR ]                -> [ ^ 4 ]).
 			([ Jump ]                 -> [ ^ 4 ]).
@@ -1971,6 +1972,16 @@ CogOutOfLineLiteralsRiscV64Compiler >> concretizeCallFull [
 	instrOffset := self loadLiteralInRegister: ConcreteIPReg.
 	self machineCodeAt: instrOffset put: (self jumpTo: ConcreteIPReg withOffset: 0 andStorePreviousPCPlus4in: LR). 
 	^ machineCodeSize := instrOffset + 4
+]
+
+{ #category : 'concretization' }
+CogOutOfLineLiteralsRiscV64Compiler >> concretizeCallR [
+
+	<inline: true>
+	| reg |
+	reg := operands at: 0.
+	self machineCodeAt: 0 put: (self jumpTo: reg withOffset: 0 andStorePreviousPCPlus4in: LR).
+	^ machineCodeSize := 4
 ]
 
 { #category : 'concretization' }
@@ -3947,6 +3958,7 @@ CogOutOfLineLiteralsRiscV64Compiler >> dispatchConcretize [
 		
 		"Control"
 		[Call]					-> [ ^ self concretizeCall ].     "call code within code space"
+		[CallR]				-> [ ^ self concretizeCallR ].
 		[CallFull]			-> [ ^ self concretizeCallFull ]. "call code anywhere in address space"
 		[JumpR]				-> [ ^ self concretizeJumpR ].
 		[JumpFull]			-> [ ^ self concretizeJumpFull ]. "jump within address space"
@@ -4717,6 +4729,35 @@ CogOutOfLineLiteralsRiscV64Compiler >> genPushRegisterArgsForNumArgs: numArgs sc
 			[cogit PushR: Arg0Reg.
 			 numArgs > 1 ifTrue:
 				[cogit PushR: Arg1Reg]]]
+]
+
+{ #category : 'smalltalk calling convention' }
+CogOutOfLineLiteralsRiscV64Compiler >> genPushRegisterArgsForPolymorphicSendTrampoline: numArgs scratchReg: anObject [
+	"Ensure that the register args are pushed before the retpc at a
+	 polymorphic send miss for arity <= self numRegArgs.  The retpc
+	  is that of a call at a send site."
+
+	"Putting the receiver and args above the return address means the
+	 CoInterpreter has a single machine-code frame format which saves
+	 us a lot of work."
+
+	"Iff there are register args convert
+		linkReg = retpc			(send site retpc)
+	 to
+		base	->	receiver
+					(arg0)
+					(arg1)
+		sp		->	retpc			(send site retpc)"
+
+	numArgs <= cogit numRegArgs ifTrue: [
+		cogit PushR: ReceiverResultReg.
+		1 <= numArgs ifTrue: [ cogit PushR: Arg0Reg ].
+		2 <= numArgs ifTrue: [ cogit PushR: Arg1Reg ].
+		self assert: numArgs <= 2.
+
+		"Sends with a small number of arguments carry their count implicitly. Time to make it explicit"
+		cogit MoveCq: numArgs R: SendNumArgsReg ].
+	cogit PushR: LinkReg
 ]
 
 { #category : 'abi' }
