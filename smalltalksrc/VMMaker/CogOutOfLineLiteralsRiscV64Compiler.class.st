@@ -6576,7 +6576,7 @@ CogOutOfLineLiteralsRiscV64Compiler >> sizePCDependentInstructionAt: eventualAbs
 	(dependent notNil and: [dependent opcode = Literal]) ifTrue:
 		[opcode = Literal ifTrue:
 			[dependent address: address].
-		 annotation = cogit getIsObjectReference ifTrue:
+		 (annotation = cogit getIsObjectReference or: [ cogit isSendAnnotation: annotation ]) ifTrue:
 			[dependent annotation: annotation.
 			 annotation := nil]].
 	^machineCodeSize := maxSize
