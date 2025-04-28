@@ -1436,9 +1436,7 @@ CoInterpreter >> cePolymorphicSendInterpret: icTable method: aMethodObj receiver
 		ifTrue: [
 			| primitiveIndex |
 			primitiveIndex := self primitiveIndexOf: aMethodObj.
-			self
-				functionPointerFor: primitiveIndex
-				inClass: objectMemory nilObject ]
+			self functionPointerFor: primitiveIndex ]
 		ifFalse: [ #primitiveInvokeObjectAsMethod ].
 	self interpretMethodFromMachineCode.
 	self unreachable
@@ -1473,9 +1471,7 @@ CoInterpreter >> cePolymorphicSendMNU: icTable method: aMethodObj receiver: rcvr
 		ifTrue: [
 			| primitiveIndex |
 			primitiveIndex := self primitiveIndexOf: aMethodObj.
-			self
-				functionPointerFor: primitiveIndex
-				inClass: objectMemory nilObject ]
+			self functionPointerFor: primitiveIndex ]
 		ifFalse: [ #primitiveInvokeObjectAsMethod ].
 	self interpretMethodFromMachineCode.
 	self unreachable
