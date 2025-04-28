@@ -17,11 +17,6 @@ CogInLineLiteralsARMCompiler >> callFullTargetFromReturnAddress: callSiteReturnA
 	^self extract32BitOperandFrom4InstructionsPreceding: callSiteReturnAddress - 4
 ]
 
-{ #category : 'accessing' }
-CogInLineLiteralsARMCompiler >> cmpC32RTempByteSize [
-	^20
-]
-
 { #category : 'initialization' }
 CogInLineLiteralsARMCompiler >> cogit: aCogit [
 	<doNotGenerate>

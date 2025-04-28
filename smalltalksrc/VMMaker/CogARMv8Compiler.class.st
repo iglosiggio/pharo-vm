@@ -4249,13 +4249,6 @@ CogARMv8Compiler >> genRestoreRegs: regMask [
 ]
 
 { #category : 'abi' }
-CogARMv8Compiler >> genSaveRegForCCall [
-	"Save the general purpose registers for a call into the C run-time from a trampoline."
-	"Save none, because the ARM ABI only defines callee saved registers, no caller-saved regs."
-	"cogit gen: STMFD operand: 16r7F"
-]
-
-{ #category : 'abi' }
 CogARMv8Compiler >> genSaveRegs: regMask [
 	"Save the registers in regMask for a call into the C run-time from a trampoline"
 	<inline: true>
@@ -5033,13 +5026,6 @@ CogARMv8Compiler >> leafCallStackPointerDelta [
 	^0
 ]
 
-{ #category : 'inline cacheing' }
-CogARMv8Compiler >> literalBeforeInlineCacheTagAt: callSiteReturnAddress [
-
-	self notYetImplemented: 'Should implement access to the class in directed super sends for ARMv8'.
-	^ 0
-]
-
 { #category : 'accessing' }
 CogARMv8Compiler >> literalLoadInstructionBytes [
 	"Answer the size of a literal load instruction (which may or may not include the size of the literal).
@@ -5070,14 +5056,6 @@ CogARMv8Compiler >> loadCwInto: destReg [
 	
 	"If this fails, use the conventional literal load sequence."
 	^self moveCw: operand intoR: destReg
-]
-
-{ #category : 'accessing' }
-CogARMv8Compiler >> loadPICLiteralByteSize [
-	"Answer the byte size of a MoveCwR opcode's corresponding machine code
-	 when the argument is a PIC.  This is for the self-reference at the end of a
-	 closed PIC.  On ARM this is a single instruction pc-relative register load."
-	^4
 ]
 
 { #category : 'assembler' }
@@ -5620,15 +5598,6 @@ CogARMv8Compiler >> rewriteFullTransferAt: callSiteReturnAddress target: callTar
 	"Rewrite a CallFull or JumpFull instruction to transfer to a different target.
 	 This variant is used to rewrite cached primitive calls.   Answer the extent
 	 of the code change which is used to compute the range of the icache to flush."
-	^self subclassResponsibility
-]
-
-{ #category : 'inline cacheing' }
-CogARMv8Compiler >> rewriteInlineCacheAt: callSiteReturnAddress tag: cacheTag target: callTargetAddress [
-	"Rewrite an inline cache to call a different target for a new tag.  This variant is used
-	 to link unlinked sends in ceSend:to:numArgs: et al.  Answer the extent of the code
-	 change which is used to compute the range of the icache to flush."
-	
 	^self subclassResponsibility
 ]
 

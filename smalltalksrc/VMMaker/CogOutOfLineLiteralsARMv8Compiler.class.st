@@ -11,11 +11,6 @@ CogOutOfLineLiteralsARMv8Compiler class >> literalsManagerClass [
 	^OutOfLineLiteralsManager
 ]
 
-{ #category : 'accessing' }
-CogOutOfLineLiteralsARMv8Compiler >> cmpC32RTempByteSize [
-	^8
-]
-
 { #category : 'generate machine code - concretize' }
 CogOutOfLineLiteralsARMv8Compiler >> concretizeLiteral [
 	"Generate an out-of-line literal.  Copy the value and any annotation from the stand-in in the literals manager."

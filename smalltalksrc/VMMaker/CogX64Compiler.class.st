@@ -451,11 +451,6 @@ CogX64Compiler >> checkIs32bit: offset [
 ]
 
 { #category : 'accessing' }
-CogX64Compiler >> cmpC32RTempByteSize [
-	^5
-]
-
-{ #category : 'accessing' }
 CogX64Compiler >> codeGranularity [
 	^1
 ]
@@ -4439,21 +4434,6 @@ CogX64Compiler >> leafCallStackPointerDelta [
 	 immediately prior to  call from within a leaf routine, which in turn is used
 	 to capture the c stack pointer to use in trampolines back into the C run-time."
 	^8
-]
-
-{ #category : 'inline cacheing' }
-CogX64Compiler >> literalBeforeInlineCacheTagAt: callSiteReturnAddress [
-	"Answer a literal loaded before the inline cache tag load for the return address of a send."
-	^self literalBeforeFollowingAddress: callSiteReturnAddress - 12 "5 for the call plus 7 for the selectorIndex/classIndex load"
-]
-
-{ #category : 'accessing' }
-CogX64Compiler >> loadPICLiteralByteSize [
-	"Answer the byte size of a MoveCwR opcode's corresponding machine code
-	 when the argument is a PIC.  This is for the self-reference at the end of a
-	 closed PIC: leaq 0xffffffffffffff2b(%rip), %rcx : 48 8D 0D 2B FF FF FF"
-	<inline: true>
-	^7
 ]
 
 { #category : 'accessing' }

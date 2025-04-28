@@ -1022,11 +1022,6 @@ CogOutOfLineLiteralsRiscV64Compiler >> checkSUBOverflowWithSourceReg1: srcReg1 s
 ]
 
 { #category : 'accessing' }
-CogOutOfLineLiteralsRiscV64Compiler >> cmpC32RTempByteSize [
-	^8
-]
-
-{ #category : 'accessing' }
 CogOutOfLineLiteralsRiscV64Compiler >> codeGranularity [
 	"Answer the size in bytes of a unit of machine code."
 	<inline: true>
@@ -4797,13 +4792,6 @@ CogOutOfLineLiteralsRiscV64Compiler >> genRestoreRegs: regMask [
 ]
 
 { #category : 'abi' }
-CogOutOfLineLiteralsRiscV64Compiler >> genSaveRegForCCall [
-	"Save the general purpose registers for a call into the C run-time from a trampoline."
-	"Save none, because the ARM ABI only defines callee saved registers, no caller-saved regs."
-	"cogit gen: STMFD operand: 16r7F"
-]
-
-{ #category : 'abi' }
 CogOutOfLineLiteralsRiscV64Compiler >> genSaveRegs: regMask [
 	"Save the registers in regMask for a call into the C run-time from a trampoline"
 	<inline: true>
@@ -5284,13 +5272,6 @@ CogOutOfLineLiteralsRiscV64Compiler >> literalBeforeFollowingAddress: followingA
 			ifFalse: [ self instructionAddressBefore: followingAddress + 4 ])) "need to go in the load at the beginning of the cmp"
 ]
 
-{ #category : 'helpers - size sign' }
-CogOutOfLineLiteralsRiscV64Compiler >> literalBeforeInlineCacheTagAt: callSiteReturnAddress [
-
-	self notYetImplemented: 'Should implement access to the class in directed super sends for ARMv8'.
-	^ 0
-]
-
 { #category : 'concretization helpers - mc size' }
 CogOutOfLineLiteralsRiscV64Compiler >> literalLoadInstructionBytes [
 	"Answer the size of a literal load instruction (which may or may not include the size of the literal).
@@ -5453,14 +5434,6 @@ CogOutOfLineLiteralsRiscV64Compiler >> loadLiteralInRegister: destReg startingAt
    	self machineCodeAt: index + 4 put: (self loadDoubleWordFromAddressInRegister: destReg withOffset: distance toRegister: destReg).
 	^ machineCodeSize := 8
 
-]
-
-{ #category : 'concretization helpers - mc size' }
-CogOutOfLineLiteralsRiscV64Compiler >> loadPICLiteralByteSize [
-	"Answer the byte size of a MoveCwR opcode's corresponding machine code
-	 when the argument is a PIC.  This is for the self-reference at the end of a
-	 closed PIC.  On RISC-V this is a two instructions pc-relative register load."
-	^8
 ]
 
 { #category : 'machine code instruction' }
@@ -6037,33 +6010,6 @@ CogOutOfLineLiteralsRiscV64Compiler >> rewriteBTypeBranchAtAddress: mcpc target:
 ]
 
 { #category : 'inline cacheing' }
-CogOutOfLineLiteralsRiscV64Compiler >> rewriteCPICJumpAt: addressFollowingJump target: jumpTargetAddr [
-	"Rewrite a jump instruction to call a different target.  This variant is used to reset the 
-	jumps in the prototype CPIC to suit each use,.   
-	Answer the extent of the code change which is used to compute the range of the icache to flush."
-	<var: #addressFollowingJump type: #usqInt>
-	<var: #jumpTargetAddr type: #usqInt>
-	| callOffset |
-	"self CmpR: ClassReg R: TempReg.
-	^self JumpNonZero: 0"
-	
-	"bne r1, r2, offset
-	 .... <-- addressFollowingJump
-	 
-	 ...  <-- jumpTargetAddress"
-	callOffset := jumpTargetAddr - addressFollowingJump + 4.
-	self assertValue: callOffset isContainedIn: 12. 
-	
- 	self assert: (self instructionIsB: (self instructionBeforeAddress: addressFollowingJump) withCondition: NE).
-	self rewriteBTypeBranchAtAddress: addressFollowingJump - 4 offset: callOffset withCondition: NE.
-	
-	self assert: (self instructionIsB: (self instructionBeforeAddress: addressFollowingJump) withCondition: NE).
-	self assert: (self extractOffsetFromConditionalBranch: (self instructionBeforeAddress: addressFollowingJump)) = callOffset.
-
-	^4
-]
-
-{ #category : 'inline cacheing' }
 CogOutOfLineLiteralsRiscV64Compiler >> rewriteCallAt: callSiteReturnAddress target: callTargetAddress [
 	"Rewrite a call/jump instruction to call a different target.  This variant is used to link PICs
 	 in ceSendMiss et al, and to rewrite call/jumps in CPICs. Answer the extent of the code change 
@@ -6124,15 +6070,6 @@ CogOutOfLineLiteralsRiscV64Compiler >> rewriteCallFullAt: callSiteReturnAddress 
 ]
 
 { #category : 'inline cacheing' }
-CogOutOfLineLiteralsRiscV64Compiler >> rewriteConditionalJumpLongAt: callSiteReturnAddress target: callTargetAddress [
-	"Rewrite a jump instruction to call a different target.  This variant is used to reset the 
-	jumps in the prototype CPIC to suit each use,.   
-	Answer the extent of the code change which is used to compute the range of the icache to flush."
-	self flag: #TODO.
-	1halt.
-]
-
-{ #category : 'inline cacheing' }
 CogOutOfLineLiteralsRiscV64Compiler >> rewriteFullTransferAt: callSiteReturnAddress target: callTargetAddress expectedInstruction: expectedInstruction [
 	"Rewrite a CallFull or JumpFull instruction to transfer to a different target.
 	 This variant is used to rewrite cached primitive calls where we load the target address into ip
@@ -6145,42 +6082,6 @@ CogOutOfLineLiteralsRiscV64Compiler >> rewriteFullTransferAt: callSiteReturnAddr
 	"self cCode: ''
 		inSmalltalk: [cogit disassembleFrom: callSiteReturnAddress - 8 to: (self pcRelativeAddressAt: callSiteReturnAddress - 8)]."
 	^0
-]
-
-{ #category : 'inline cacheing' }
-CogOutOfLineLiteralsRiscV64Compiler >> rewriteInlineCacheAt: callSiteReturnAddress tag: cacheTag target: callTargetAddress [
-	"Rewrite an inline cache to call a different target for a new tag.  This variant is used
-	 to link unlinked sends in ceSend:to:numArgs: et al.  Answer the extent of the code
-	 change which is used to compute the range of the icache to flush.
-	
-	 Call:
-	 auipc offsetHigh 
-	 jalr offsetLow 
-	 ... <-- callSiteReturnAddress
-	
-	 Cache:
-	 cacheTag <-- pcRelativeAddress from call"
-	<var: #callSiteReturnAddress type: #usqInt>
-	<var: #callTargetAddress type: #usqInt>
-	| codeChange |
-	"Patch call"
-	codeChange := self rewriteCallAt: callSiteReturnAddress target: callTargetAddress.
-	"Patch tag referenced by earlier call"
-	objectMemory
-		longAt: (self pcRelativeAddressAt: callSiteReturnAddress - self callInstructionByteSize - self loadLiteralByteSize) 
-		put: cacheTag signedIntToLong64.
-
-	self assert: (self inlineCacheTagAt: callSiteReturnAddress) = cacheTag  signedIntToLong64.
-	"self cCode: ''
-		inSmalltalk: [cogit disassembleFrom: callSiteReturnAddress - 8 to: (self pcRelativeAddressAt: callSiteReturnAddress - 8)]."
-	^ codeChange
-]
-
-{ #category : 'inline cacheing' }
-CogOutOfLineLiteralsRiscV64Compiler >> rewriteInlineCacheTag: cacheTag at: callSiteReturnAddress [
-	"Rewrite an inline cache with a new tag.  This variant is used by the garbage collector."
-	<inline: true>
-	objectMemory longAt: (self pcRelativeAddressAt: callSiteReturnAddress - 8) put: cacheTag
 ]
 
 { #category : 'inline cacheing' }

@@ -602,11 +602,6 @@ CogAbstractInstruction >> cloneLiteralFrom: existingLiteral [
 ]
 
 { #category : 'accessing' }
-CogAbstractInstruction >> cmpC32RTempByteSize [
-	self subclassResponsibility
-]
-
-{ #category : 'accessing' }
 CogAbstractInstruction >> codeGranularity [
 	"Answer the size in bytes of a unit of machine code."
 	<inline: true>
@@ -1288,14 +1283,6 @@ CogAbstractInstruction >> literalBeforeFollowingAddress: followingAddress [
 { #category : 'accessing' }
 CogAbstractInstruction >> loadLiteralByteSize [
 	"Answer the byte size of a MoveCwR opcode's corresponding machine code"
-	self subclassResponsibility
-]
-
-{ #category : 'accessing' }
-CogAbstractInstruction >> loadPICLiteralByteSize [
-	"Answer the byte size of a MoveCwR opcode's corresponding machine code
-	 when the argument is a PIC.  This is for the self-reference at the end of a
-	 closed PIC."
 	self subclassResponsibility
 ]
 

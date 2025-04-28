@@ -274,11 +274,6 @@ CogIA32Compiler >> canZeroExtend [
 ]
 
 { #category : 'accessing' }
-CogIA32Compiler >> cmpC32RTempByteSize [
-	^5
-]
-
-{ #category : 'accessing' }
 CogIA32Compiler >> codeGranularity [
 	"Answer the size in bytes of a unit of machine code."
 	^1
@@ -3734,25 +3729,10 @@ CogIA32Compiler >> literalBeforeFollowingAddress: followingAddress [
 	+   (objectMemory byteAt: followingAddress - 4)
 ]
 
-{ #category : 'inline cacheing' }
-CogIA32Compiler >> literalBeforeInlineCacheTagAt: callSiteReturnAddress [
-	"Answer a literal loaded before the inline cache tag load for the return address of a send."
-	^self literalBeforeFollowingAddress: callSiteReturnAddress - 10
-]
-
 { #category : 'accessing' }
 CogIA32Compiler >> loadLiteralByteSize [
 	"Answer the byte size of a MoveCwR opcode's corresponding machine code"
 	^5
-]
-
-{ #category : 'accessing' }
-CogIA32Compiler >> loadPICLiteralByteSize [
-	"Answer the byte size of a MoveCwR opcode's corresponding machine code
-	 when the argument is a PIC.  This is for the self-reference at the end of a
-	 closed PIC."
-	<inline: true>
-	^self loadLiteralByteSize
 ]
 
 { #category : 'accessing' }
