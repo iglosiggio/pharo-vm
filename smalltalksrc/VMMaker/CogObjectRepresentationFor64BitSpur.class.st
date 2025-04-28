@@ -518,7 +518,7 @@ CogObjectRepresentationFor64BitSpur >> genGetInlineCacheClassTagFrom: sourceReg 
 	cogit MoveMw: 0 r: sourceReg R: destReg.
 	cogit AndCq: objectMemory classIndexMask R: destReg.
 	jumpImm jmpTarget: cogit Label.
-	^entryLabel
+	^ entryLabel
 ]
 
 { #category : 'compile abstract instructions' }

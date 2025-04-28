@@ -151,7 +151,6 @@ Class {
 		'stackOverflowCall',
 		'sendMiss',
 		'missOffset',
-		'entryPointMask',
 		'cmEntryOffset',
 		'entry',
 		'cmNoCheckEntryOffset',
@@ -1182,7 +1181,7 @@ Cogit class >> methodZoneClass [
 ]
 
 { #category : 'translation' }
-Cogit class >> mustBeGlobal: var [
+Cogit class >> mustBeGlobalAndExport: var [
 	"Answer if a variable must be global and exported.  Used for inst vars that are accessed from VM
 	 support code.  include cePositive32BitIntegerTrampoline as a hack to prevent it being inlined (it is
 	 only used outside of Cogit by the object representation).  Include CFramePointer CStackPointer as
@@ -3563,6 +3562,14 @@ Cogit >> cStackPointerAddress [
 		ifFalse: [coInterpreter inMemoryCStackPointerAddress]
 ]
 
+{ #category : 'in-line cacheing' }
+Cogit >> cacheTagIsSelectorForAnnotation: annotation andEntryPoint: entryPoint [
+	"in-line cache tags are selectors on unlinked sends, super sends and megamorphically linked sends"
+	^ entryPoint < methodZoneBase "Unlinked sends"
+	 or: [ (self annotationIsForUncheckedEntryPoint: annotation) "Super sends"
+	 or: [ (self cCoerceSimple: entryPoint - cmEntryOffset to: #'CogMethod *') cmType = CMMegamorphicIC ] ] "Megamorphic sends"
+]
+
 { #category : 'debugging' }
 Cogit >> callCogCodePopReceiver [
 	"This is a static version of ceCallCogCodePopReceiverReg
@@ -5306,10 +5313,7 @@ Cogit >> computeEntryOffsets [
 	
 	cmEntryOffset := entry address - methodZoneBase.
 	cmNoCheckEntryOffset := noCheckEntry address - methodZoneBase.
-	missOffset := sendMissCall address + sendMissCall machineCodeSize - methodZoneBase.
-	entryPointMask := objectMemory wordSize - 1.
-	[(cmEntryOffset bitAnd: entryPointMask) = (cmNoCheckEntryOffset bitAnd: entryPointMask)] whileTrue:
-		[entryPointMask := entryPointMask + entryPointMask + 1]
+	missOffset := sendMissCall address + sendMissCall machineCodeSize - methodZoneBase
 ]
 
 { #category : 'initialization' }
@@ -9815,12 +9819,12 @@ Cogit >> printWhereIs: address [
 			trampAddr := self codeEntryFor: address.
 			trampAddr ifNil: [ 
 					coInterpreter
-						printHex: address;
+						printHex: (self cCoerceSimple: address to: #sqInt);
 						print: ' not in the code zone';
 						cr ]
 				ifNotNil: [ 
 					coInterpreter
-						printHex: address;
+						printHex: (self cCoerceSimple: address to: #sqInt);
 						print: ' in trampoline ';
 						print: (self codeEntryNameFor: address);
 						print: ' (starting at address ';
@@ -9829,7 +9833,7 @@ Cogit >> printWhereIs: address [
 						cr ] ]
 		ifFalse: [ 
 			coInterpreter
-				printHex: address;
+				printHex: (self cCoerceSimple: address to: #sqInt);
 				print: ' in cog method '.
 			"Handle selector"
 			cogMethod selector = objectMemory nilObject
