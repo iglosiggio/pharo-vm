@@ -619,7 +619,8 @@ Class {
 		'fromPermToOldSpaceRememberedSet',
 		'fromPermToNewSpaceRememberedSet',
 		'permSpaceForwardersToCleanUp',
-		'avoidSearchingSegmentsWithPinnedObjects'
+		'avoidSearchingSegmentsWithPinnedObjects',
+		'cacheID'
 	],
 	#classVars : [
 		'BitsPerByte',
@@ -1931,6 +1932,47 @@ SpurMemoryManager >> allocateICTable: selectorOop withUnlinkedHandler: unlinkedT
 		self storeSelectorOfTable: result with: selectorOop.
 		self storeHandlerOfTable: result with: unlinkedTrampoline.
 		self clearAllICTableEntries: result ].
+
+	self cCode: [ 
+		"The event is a 64bit thing:
+		   Inline Cache ID  | 40 bits
+		   Current state    |  4 bits
+		   Next state       |  4 bits
+		   Data             | 16 bits
+
+		 States:
+		   0 - NONEXISTENT
+		   1 - UNLINKED
+		   2 - POLYMORPHIC
+		   3 - MEGAMORPHIC
+		         Megamorphic ICs are executed immediately.
+		         Next event indicates the new ID
+		 Data (for POLYMORPHIC):
+		   Data represents the detailed new state for polymorphic inline caches.
+		   When transitioning _to_ a polymorphic state it represents the initial
+		   state. If you need the previous state you should look at the previous
+		   event for the same ID. If has the following structure:
+		     Two bits for each entry specifying its state (12 total):
+		       0 - UNLINKED
+		       1 - LINKED
+		       2 - LINKED (Interpreted)
+		       3 - LINKED (MNU)
+		     Three bits specifying the where the table was hit:
+		       0 - Cache miss
+		       1 - First entry
+		       2 - Second entry
+		       3 - Third entry
+		       4 - Fourth entry
+		       5 - Fifth entry
+		       6 - Sixth entry
+  		     7 - There is no method activation associated with this event
+		     A final, reserved bit"
+		| currentState nextState data |
+		currentState := 0. "NONEXISTENT"
+		nextState := 1. "UNLINKED"
+		data := 2r111000000000000.
+		self ics_event: self nextCacheID + currentState << 40 + nextState << 44 + data << 48.].
+
 	^ result
 ]
 
@@ -7001,6 +7043,8 @@ SpurMemoryManager >> initialize [
 	
 	avoidSearchingSegmentsWithPinnedObjects := false.
 
+	cacheID := 0.
+
 ]
 
 { #category : 'bootstrap' }
@@ -9890,6 +9934,12 @@ SpurMemoryManager >> newSpaceRefCountMask [
 SpurMemoryManager >> newSpaceSize [
 	^(freeStart - scavenger eden start)
 	 + (pastSpaceStart - scavenger pastSpace start)
+]
+
+{ #category : 'ic tables' }
+SpurMemoryManager >> nextCacheID [
+
+	^ cacheID := cacheID + 1.
 ]
 
 { #category : 'primitive support' }
