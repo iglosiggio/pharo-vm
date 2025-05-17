@@ -1933,7 +1933,7 @@ SpurMemoryManager >> allocateICTable: selectorOop withUnlinkedHandler: unlinkedT
 		self storeHandlerOfTable: result with: unlinkedTrampoline.
 		self clearAllICTableEntries: result ].
 
-	self cCode: [ 
+	self cCode: [
 		"The event is a 64bit thing:
 		   Inline Cache ID  | 40 bits
 		   Current state    |  4 bits
@@ -1965,13 +1965,13 @@ SpurMemoryManager >> allocateICTable: selectorOop withUnlinkedHandler: unlinkedT
 		       4 - Fourth entry
 		       5 - Fifth entry
 		       6 - Sixth entry
-  		     7 - There is no method activation associated with this event
+		  	    7 - There is no method activation associated with this event
 		     A final, reserved bit"
 		| currentState nextState data |
 		currentState := 0. "NONEXISTENT"
 		nextState := 1. "UNLINKED"
-		data := 2r111000000000000.
-		self ics_event: self nextCacheID + currentState << 40 + nextState << 44 + data << 48.].
+		data := 2r111000000000000. "No activation"
+		self ics_event: (self nextCacheID) + (currentState << 40) + (nextState << 44) + (data << 48).].
 
 	^ result
 ]
