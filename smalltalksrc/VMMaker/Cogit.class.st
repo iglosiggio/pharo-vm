@@ -3120,7 +3120,8 @@ Cogit >> allocateTrampolineOpcodes [
 { #category : 'in-line cacheing' }
 Cogit >> allowEarlyPromotionToMegamorphicIC [
 	<inline: true>
-	^ true
+	"This is now uneeded. It was a memory optimization."
+	^ false
 ]
 
 { #category : 'method map' }
@@ -5850,16 +5851,6 @@ Cogit >> firstMappedPCFor: cogMethod [
 		ifFalse: [cogMethod asUnsignedInteger + cmNoCheckEntryOffset]
 ]
 
-{ #category : 'in-line cacheing' }
-Cogit >> firstPrototypeMethodOop [
-	"Answer a fake value for the first method oop in the PIC prototype.
-	 Since we use MoveUniqueCw:R: it must not be confused with a method-relative address."
-	<inline: false>
-	^(self addressIsInCurrentCompilation: 16r5EAF00D)
-		ifTrue: [16rCA7F00D]
-		ifFalse: [16r5EAF00D]
-]
-
 { #category : 'compile abstract instructions' }
 Cogit >> fixupAt: fixupPC [
 	<inline: true>
@@ -7920,16 +7911,6 @@ Cogit >> initializeProcessorStack: rumpCStackAddress [
 Cogit >> initialized [
 	<doNotGenerate>
 	^openPICSize isInteger
-]
-
-{ #category : 'in-line cacheing' }
-Cogit >> inlineCacheTagsAreIndexes [
-	"The Cogit always generates 32-bit inline caches.  This implies that in 64-bits there is no room
-	 in an unlinked inline cache for a selector oop.  Instead it contains a signed 32-bit index, positive
-	 for selectors in a method's literal frame and negative for selectors in the specialSelectorsOop.
-	 And it implies that linked inline cache entries contain class indices, not class oops."
-	<inline: true>
-	^objectMemory wordSize = 8
 ]
 
 { #category : 'tests-method map' }
@@ -10260,14 +10241,6 @@ Cogit >> selectorForSendBefore: bcpc in: aCompiledMethod [
 	^(sel := is selectorToSendOrSelf) ~~ is ifTrue: [sel]
 ]
 
-{ #category : 'in-line cacheing' }
-Cogit >> selectorFromSelectorIndex: selectorIndex in: aCompiledMethod [
-	<inline: true>
-	^selectorIndex < 0
-		ifTrue: [(coInterpreter specialSelector: -1 - selectorIndex)]
-		ifFalse: [coInterpreter literal: selectorIndex ofMethod: aCompiledMethod]
-]
-
 { #category : 'analysis' }
 Cogit >> sendTablesIn: cogMethod do: binaryBlock [
 	"Iterate through all the send tables in a cogged method"
@@ -10756,16 +10729,6 @@ Cogit >> storeLiteral: objOop atAnnotatedAddress: address [
 	<inline: true>
 	literalsManager storeLiteral: objOop atAnnotatedAddress: address using: backEnd 
 	
-]
-
-{ #category : 'in-line cacheing' }
-Cogit >> subsequentPrototypeMethodOop [
-	"Answer a fake value for the method oop in other than the first case in the PIC prototype.
-	 Since we use MoveUniqueCw:R: it must not be confused with a method-relative address."
-	<inline: false>
-	^(self addressIsInCurrentCompilation: 16rBADA550)
-		ifTrue: [16rDEADEAD]
-		ifFalse: [16rBADA550]
 ]
 
 { #category : 'accessing' }
