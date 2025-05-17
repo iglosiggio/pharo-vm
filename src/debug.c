@@ -221,3 +221,21 @@ vm_printf(const char * format, ... ){
 
 	return returnValue;
 }
+
+void ics_event(unsigned long long event) {
+	#define ICS_BUF_SIZE 4096
+	static size_t i = 0;
+	static unsigned long long buf[ICS_BUF_SIZE];
+	buf[i++] = event;
+	if (i == ICS_BUF_SIZE) {
+		static FILE* out;
+		i = 0;
+		if (out == NULL) {
+			out = fopen("ics.log.bin", "w");
+			if (out == NULL) error("Failed to create the IC log file");
+		}
+		size_t written = fwrite(buf, sizeof(unsigned long long), ICS_BUF_SIZE, out);
+		if (written != ICS_BUF_SIZE) error("Filed to flush IC events");
+	}
+	#undef ICS_BUF_SIZE
+}

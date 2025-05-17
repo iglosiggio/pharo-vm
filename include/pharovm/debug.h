@@ -106,4 +106,4 @@ EXPORT(void) notifyDebugWindow();
 //       6 - Sixth entry
 //       7 - There is no method activation associated with this event
 //     A final, reserved bit
-void ics_event(long long event);
+void ics_event(unsigned long long event);
