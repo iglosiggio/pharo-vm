@@ -3117,13 +3117,6 @@ Cogit >> allocateTrampolineOpcodes [
 	self allocateOpcodes: 160 bytecodes: 0
 ]
 
-{ #category : 'in-line cacheing' }
-Cogit >> allowEarlyPromotionToMegamorphicIC [
-	<inline: true>
-	"This is now uneeded. It was a memory optimization."
-	^ false
-]
-
 { #category : 'method map' }
 Cogit >> annotate: abstractInstruction objRef: anOop [
 	<var: #abstractInstruction type: #'AbstractInstruction *'>
@@ -3895,17 +3888,6 @@ Cogit >> ceSICMiss: receiver icTable: icTable [
 				icTable: icTable.
 			coInterpreter ceSendFromInLineCacheMiss: missedTargetCogMethod numArgs: numArgs receiver: receiver.
 			^ self unreachable].
-
-	"If early promotion is allowed check if anyone else saw this selector turn megamorphic"
-	self allowEarlyPromotionToMegamorphicIC ifTrue: [
-		| megamorphicStub |
-		megamorphicStub := methodZone openPICWithSelector: selector.
-		megamorphicStub ifNotNil: [
-			self transitionToMegamorphicSend: icTable usingStub: megamorphicStub.
-			coInterpreter
-				executeCogMethod: megamorphicStub
-				fromLinkedSendWithReceiver: receiver.
-			^ self unreachable ] ].
 
 	"      method | errorSelector             | situation
 	 -------------+---------------------------+---------------------------------------------------------

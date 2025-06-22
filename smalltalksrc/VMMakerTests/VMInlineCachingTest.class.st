@@ -547,28 +547,6 @@ VMInlineCachingTest >> testMonomorphicCacheHit [
 		equals: methodCog address + cogit noCheckEntryOffset
 ]
 
-{ #category : 'tests - early megamorphic promotion' }
-VMInlineCachingTest >> testMonomorphicallyLinkedSendTransitionsToMegamorphicForMegamorphicSelectors [
-
-	| methodCog  megamorphicStub |
-	methodCog := self cogMethodForClass: 1.
-	megamorphicStub := cogit cogOpenPICSelector: oopSelector numArgs: argCount.
-
-	cogit transitionToMonomorphicSend: icTable cacheTag: (cacheTags at: 1) cogMethod: methodCog isSuper: 0.
-
-	machineSimulator arg0RegisterValue: (instances at: 2).
-	self
-		runFrom: senderCogMethod address + cogit noCheckEntryOffset
-		until: megamorphicStub address + cogit entryOffset.
-
-	self
-		assert: machineSimulator instructionPointerRegisterValue
-		equals: megamorphicStub address + cogit entryOffset.
-	self
-		assert: (memory fetchHandlerOfTable: icTable)
-		equals: megamorphicStub address + cogit entryOffset
-]
-
 { #category : 'tests - state transitions' }
 VMInlineCachingTest >> testMonomorphicallyLinkedTrasitionsToPolymorphic [
 
