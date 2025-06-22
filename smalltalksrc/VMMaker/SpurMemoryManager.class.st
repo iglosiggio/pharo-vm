@@ -619,7 +619,8 @@ Class {
 		'fromPermToOldSpaceRememberedSet',
 		'fromPermToNewSpaceRememberedSet',
 		'permSpaceForwardersToCleanUp',
-		'avoidSearchingSegmentsWithPinnedObjects'
+		'avoidSearchingSegmentsWithPinnedObjects',
+		'maxSlotsForNewSpaceAlloc'
 	],
 	#classVars : [
 		'BitsPerByte',
@@ -7000,6 +7001,8 @@ SpurMemoryManager >> initialize [
 							ifNil: [0].
 	
 	avoidSearchingSegmentsWithPinnedObjects := false.
+	
+	maxSlotsForNewSpaceAlloc := 0. "We will use the default value"
 
 ]
 
@@ -9498,7 +9501,12 @@ SpurMemoryManager >> maxSlotsForNewSpaceAlloc [
 	"Almost entirely arbitrary, but we dont want 1Mb bitmaps allocated in eden.
 	 But this choice means no check for numSlots > maxSlotsForNewSpaceAlloc
 	 for non-variable allocations."
-	^self fixedFieldsOfClassFormatMask
+	
+	^ maxSlotsForNewSpaceAlloc = 0 
+		ifTrue: [ self fixedFieldsOfClassFormatMask ]
+		ifFalse: [ maxSlotsForNewSpaceAlloc ]
+	
+	
 ]
 
 { #category : 'interpreter access' }
@@ -12305,6 +12313,15 @@ SpurMemoryManager >> setMaxOldSpaceSize: limit [
 	<var: #limit type: #usqInt>
 	maxOldSpaceSize := limit.
 	^0
+]
+
+{ #category : 'instantiation' }
+SpurMemoryManager >> setMaxSlotsForNewSpaceAlloc: aValue [
+	
+	<api>
+	
+	maxSlotsForNewSpaceAlloc := aValue
+	
 ]
 
 { #category : 'accessing' }
