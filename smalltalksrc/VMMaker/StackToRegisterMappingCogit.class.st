@@ -2005,6 +2005,9 @@ StackToRegisterMappingCogit >> genMarshalledSend: selectorIndex numArgs: numArgs
 			between: IsDirectedSuperSend
 			and: IsDirectedSuperBindingSend]) ifTrue:
 		[self genMoveConstant: tempOop R: TempReg].
+"TRACE SENDS"
+self genLoadInlineCacheWithSelector: selectorIndex.
+self MoveR: ClassReg Aw: self traceSendAddress.
 	self genLoadInlineCacheWithSelector: selectorIndex.
 	(self Call: (sendTable at: (numArgs min: NumSendTrampolines - 1))) annotation: annotation.
 	self voidReceiverOptStatus.

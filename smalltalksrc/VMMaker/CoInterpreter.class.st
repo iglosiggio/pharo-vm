@@ -92,7 +92,8 @@ Class {
 		'maxLiteralCountForCompile',
 		'minBackwardJumpCountForCompile',
 		'initialMemoryAddress',
-		'rumpCStackBase'
+		'rumpCStackBase',
+		'traceSend'
 	],
 	#classVars : [
 		'HasBeenReturnedFromMCPC',
@@ -163,6 +164,7 @@ CoInterpreter class >> declareCVarsIn: aCCodeGenerator [
 			declareC: 'sqInt minBackwardJumpCountForCompile = MinBackwardJumpCountForCompile /* ', MinBackwardJumpCountForCompile printString, ' */'.
 	aCCodeGenerator removeVariable: 'atCache'. "Way too much trouble than it's worth in the Cog VM"
 	aCCodeGenerator
+		var: #traceSend type: 'sqInt';
 		var: #primTraceLogIndex type: #'unsigned char';
 		var: #primTraceLog declareC: 'sqInt primTraceLog[256]';
 		var: #traceLog
@@ -373,9 +375,9 @@ CoInterpreter class >> isNonArgumentImplicitReceiverVariableName: aString [
 CoInterpreter class >> mustBeGlobalAndExport: var [
 	"Answer if a variable must be global and exported.  Used for inst vars that are accessed from VM support code."
 
-	^(super mustBeGlobalAndExport: var)
-	   or: [#('desiredCogCodeSize' 'heapBase'
-			'maxLiteralCountForCompile' 'minBackwardJumpCountForCompile') includes: var]
+	^ (super mustBeGlobalAndExport: var) or: [
+		#('desiredCogCodeSize' 'heapBase' 'maxLiteralCountForCompile' 'minBackwardJumpCountForCompile'
+		  'traceSend') includes: var]
 ]
 
 { #category : 'translation' }
@@ -4953,6 +4955,14 @@ CoInterpreter >> temporary: offset in: theFP put: valueOop [
 	^(self isMachineCodeFrame: theFP)
 		ifTrue: [self mtemporary: offset in: theFP put: valueOop]
 		ifFalse: [super temporary: offset in: theFP put: valueOop]
+]
+
+{ #category : 'trampoline support' }
+CoInterpreter >> traceSendAddress [
+	<api>
+	<returnTypeC: #usqInt>
+	^self cCode: [(self addressOf: traceSend) asUnsignedInteger]
+		inSmalltalk: [cogit simulatedReadWriteVariableAddress: #traceSend in: self]
 ]
 
 { #category : 'image save/restore' }

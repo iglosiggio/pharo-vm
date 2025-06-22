@@ -11590,6 +11590,12 @@ Cogit >> traceLinkedSendOffset [
 		ifFalse: [0])
 ]
 
+{ #category : 'simulation only' }
+Cogit >> traceSendAddress [
+	<doNotGenerate>
+	^coInterpreter traceSendAddress
+]
+
 { #category : 'debugging' }
 Cogit >> traceStores: aBooleanOrInteger [
 	<doNotGenerate>
