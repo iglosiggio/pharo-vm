@@ -409,6 +409,7 @@ include(cmake/${CMAKE_SYSTEM_NAME}.cmake)
 
 set(GENERATED_SOURCES ${VMSOURCEFILES})
 
+enable_language(ASM)
 list(APPEND SUPPORT_SOURCES	
 	${CMAKE_CURRENT_SOURCE_DIR}/src/debug.c
 	${CMAKE_CURRENT_SOURCE_DIR}/src/utils.c
@@ -429,6 +430,7 @@ list(APPEND SUPPORT_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/common/sqNamedPrims.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/common/sqExternalSemaphores.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/common/sqTicker.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/hack.s
 )
 
 if(${FEATURE_FFI})
