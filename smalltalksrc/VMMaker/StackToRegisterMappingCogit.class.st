@@ -2000,6 +2000,11 @@ StackToRegisterMappingCogit >> genMarshalledSend: selectorIndex numArgs: numArgs
 	 The last send trampoline (NumSendTrampolines - 1) passes numArgs in SendNumArgsReg."
 	numArgs >= (NumSendTrampolines - 1) ifTrue:
 		[self MoveCq: numArgs R: SendNumArgsReg].
+"Trace sends!"
+self cCode: [
+	self genLoadInlineCacheWithSelector: selectorIndex.
+	self cCode: 'extern void* beforesend'.
+	self CallFullRT: #'&beforesend' ].
 	(BytecodeSetHasDirectedSuperSend
 	 and: [annotation
 			between: IsDirectedSuperSend

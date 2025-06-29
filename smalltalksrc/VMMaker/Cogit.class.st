@@ -5307,6 +5307,10 @@ Cogit >> compileEntry [
 	self compileSendTrace ifTrue:
 		[backEnd saveAndRestoreLinkRegAround:
 			[self CallRT: ceTraceLinkedSendTrampoline]]
+."Trace sends!"
+self cCode: [
+	self cCode: 'extern void* beforemethod'.
+	self CallFullRT: #'&beforemethod' ]
 ]
 
 { #category : 'compile abstract instructions' }
