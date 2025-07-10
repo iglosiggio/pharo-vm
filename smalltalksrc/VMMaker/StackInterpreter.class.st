@@ -15322,10 +15322,23 @@ StackInterpreter >> traceMessageSend [
 	TraceMessageSendsBufferSize <= traceMessageSendsIdx ifTrue: [
 		"Flush"
 		self cCode: [
-			| outputFile |
+			| outputFile didItWrite didItFailOnFlush didFailOnClose |
 			outputFile := self fopen: 'messageTrace' _: 'ab+'.
-			self fwrite: traceMessageSends _: TraceMessageSendsEntrySize * 4 _: TraceMessageSendsBufferSize _: outputFile.
-			self fclose: outputFile ].
+			outputFile ifFalse: [
+				self perror: '[OPEN] Something went wrong' ].
+			didItWrite := self
+				fwrite: traceMessageSends
+				_: TraceMessageSendsBufferSize * TraceMessageSendsEntrySize * 4
+				_: 1
+				_: outputFile.
+			didItWrite ifFalse: [
+				self perror: '[WRITE] Something went wrong' ].
+			didItFailOnFlush := self fflush: outputFile.
+			didItFailOnFlush ifTrue: [
+				self perror: '[FLUSH] Something went wrong' ].
+			didFailOnClose := self fclose: outputFile.
+			didFailOnClose ifTrue: [
+				self perror: '[CLOSE] Something went wrong' ] ].
 		traceMessageSendsIdx := 0 ].
 ]
 
