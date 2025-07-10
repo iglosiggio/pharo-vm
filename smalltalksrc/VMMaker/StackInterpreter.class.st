@@ -392,7 +392,9 @@ Class {
 		'pendingFinalizationSignals',
 		'imageVersionNumber',
 		'desiredStackPageBytes',
-		'imageReaderWriter'
+		'imageReaderWriter',
+		'traceMessageSendsIdx',
+		'traceMessageSends'
 	],
 	#classVars : [
 		'AlternateHeaderHasPrimFlag',
@@ -577,6 +579,10 @@ If ffi is put as a separate header, slang will sort the header and put it outsid
 		declareC:
 			'void (*externalPrimitiveTable[MaxExternalPrimitiveTableSize + 1 /* '
 			, (MaxExternalPrimitiveTableSize + 1) printString , ' */])(void)';
+		var: #traceMessageSends
+		declareC:
+			'uint32_t traceMessageSends[TraceMessageSendsEntrySize * TraceMessageSendsBufferSize /* '
+			, (TraceMessageSendsEntrySize * TraceMessageSendsBufferSize) printString , ' */]';
 		var: #jmpBuf
 		declareC:
 			'jmp_buf jmpBuf[MaxJumpBuf + 1 /* ' , (MaxJumpBuf + 1) printString
@@ -4513,6 +4519,7 @@ StackInterpreter >> commonSendOrdinary [
 	self sendBreakpoint: messageSelector receiver: (self stackValue: argumentCount).
 	self doRecordSendTrace.
 	self findNewMethodOrdinary.
+	self traceMessageSend.
 	self executeNewMethod: false.
 	self fetchNextBytecode
 ]
@@ -15289,6 +15296,37 @@ StackInterpreter >> thisClassIndex [
 StackInterpreter >> time: aString [ 
 	<doNotGenerate>
 	^ 0
+]
+
+{ #category : 'send bytecodes' }
+StackInterpreter >> traceMessageSend [
+	| srcClass srcMethod srcOffset srcSelector dstClass dstMethod idxBase |
+	srcClass := objectMemory fetchClassTagOf: self receiver.
+	srcMethod := objectMemory hashBitsOf: method.
+	srcOffset := instructionPointer asUnsignedInteger - method asUnsignedInteger.
+	srcSelector := (objectMemory isImmediate: messageSelector)
+		ifTrue: [ messageSelector ]
+		ifFalse: [ objectMemory hashBitsOf: messageSelector ].
+	dstClass := lkupClassTag.
+	dstMethod := objectMemory hashBitsOf: newMethod.
+
+	idxBase := traceMessageSendsIdx * TraceMessageSendsEntrySize.
+	traceMessageSends at: idxBase + 0 put: srcClass.
+	traceMessageSends at: idxBase + 1 put: srcMethod.
+	traceMessageSends at: idxBase + 2 put: srcOffset.
+	traceMessageSends at: idxBase + 3 put: srcSelector.
+	traceMessageSends at: idxBase + 4 put: dstClass.
+	traceMessageSends at: idxBase + 5 put: dstMethod.
+	traceMessageSendsIdx := traceMessageSendsIdx + 1.
+
+	TraceMessageSendsBufferSize <= traceMessageSendsIdx ifTrue: [
+		"Flush"
+		self cCode: [
+			| outputFile |
+			outputFile := self fopen: 'messageTrace' _: 'ab+'.
+			self fwrite: traceMessageSends _: TraceMessageSendsEntrySize * 4 _: TraceMessageSendsBufferSize _: outputFile.
+			self fclose: outputFile ].
+		traceMessageSendsIdx := 0 ].
 ]
 
 { #category : 'object memory support' }

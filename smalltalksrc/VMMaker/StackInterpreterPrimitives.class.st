@@ -13,7 +13,7 @@ Class {
 { #category : 'translation' }
 StackInterpreterPrimitives class >> mustBeGlobalInFile: var [
 
-	^ #( #composedImageWriter #spurImageWriter ) includes: var
+	^ #( #composedImageWriter #spurImageWriter #traceMessageSends #traceMessageSendsIdx ) includes: var
 ]
 
 { #category : 'initialization' }

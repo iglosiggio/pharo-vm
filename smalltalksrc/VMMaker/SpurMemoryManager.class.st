@@ -924,6 +924,9 @@ SpurMemoryManager class >> initializeWithOptions: optionsDictionary [
 	self initializeCompactClassIndices.
 	self initializePrimitiveErrorCodes.
 
+	TraceMessageSendsBufferSize := 65536.
+	TraceMessageSendsEntrySize := 6.
+
 	SpurGenerationScavenger initialize
 ]
 

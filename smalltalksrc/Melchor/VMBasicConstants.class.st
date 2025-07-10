@@ -62,6 +62,8 @@ Class {
 		'STACKVM',
 		'SistaVM',
 		'TempVectReadBarrier',
+		'TraceMessageSendsBufferSize',
+		'TraceMessageSendsEntrySize',
 		'VMBIGENDIAN',
 		'WIN32'
 	],

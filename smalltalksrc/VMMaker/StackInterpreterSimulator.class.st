@@ -228,6 +228,10 @@ StackInterpreterSimulator >> basicInitialize [
 	
 	imageReaderWriter := VMImageReaderWriter newWithMemory: objectMemory andInterpreter: self.
 
+	traceMessageSends := CArrayAccessor on: (Array
+		new: TraceMessageSendsEntrySize * TraceMessageSendsBufferSize
+		withAll: 0).
+	traceMessageSendsIdx := 0.
 ]
 
 { #category : 'spur bootstrap' }
