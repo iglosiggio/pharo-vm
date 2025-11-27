@@ -148,7 +148,7 @@ CoInterpreter class >> declareCVarsIn: aCCodeGenerator [
 	"Override to avoid repeating StackInterpreter's declarations and add our own extensions"
 	self class == thisContext methodClass ifFalse: [^self]. "Don't duplicate decls in subclasses"
 	aCCodeGenerator
-		addHeaderFile:'"sqCogStackAlignment.h"';
+		addHeaderFile:'"cogStackAlignment.h"';
 		addHeaderFile:'"cogmethod.h"'.
 	aCCodeGenerator
 		addHeaderFile: '"cointerp.h"';
@@ -2761,11 +2761,6 @@ CoInterpreter >> functionPointerForCompiledMethod: methodObj primitiveIndex: pri
 	^functionPointer
 ]
 
-{ #category : 'object memory support' }
-CoInterpreter >> gcMode [
-	^gcMode
-]
-
 { #category : 'as yet unclassified' }
 CoInterpreter >> gcMode: anInteger [ 
 
@@ -3773,7 +3768,7 @@ CoInterpreter >> mframeNumArgs: theFP [
 CoInterpreter >> mframeReceiver: theFP [
 	<inline: true>
 	<var: #theFP type: #'char *'>
-	^stackPages longAt: theFP + FoxMFReceiver
+	^stackPages unsignedLongAt: theFP + FoxMFReceiver
 ]
 
 { #category : 'frame access' }

@@ -762,6 +762,7 @@ StackToRegisterMappingCogit >> allocateRegNotConflictingWith: regMask [
 StackToRegisterMappingCogit >> allocateVectorRegForStackEntryAt: index notConflictingWith: regMask [
 	"If the stack entry is already in a register not conflicting with regMask, answers it,
 	else allocate a new register not conflicting with reg mask"
+	<option: #FEATURE_JIT_SIMD>
 	<var: #stackEntry type: #'CogSimStackEntry *'>
 	<returnTypeC: #'signed char'>
 	| stackEntry mask |
@@ -789,6 +790,8 @@ StackToRegisterMappingCogit >> allocateVectorRegForStackEntryAt: index notConfli
 
 { #category : 'simulation stack' }
 StackToRegisterMappingCogit >> allocateVectorRegNotConflictingWith: regMask [
+
+	<option: #FEATURE_JIT_SIMD>
 	| reg |
 	"if there's a free register, use it"
 	reg := backEnd availableVectorRegisterOrNoneFor: (self liveVectorRegisters bitOr: regMask).
@@ -1339,6 +1342,7 @@ StackToRegisterMappingCogit >> freeAnyRegNotConflictingWith: regMask [
 StackToRegisterMappingCogit >> genAddFloat32Vector [ 
 	| array1Reg array2Reg sumReg |
 
+	<option: #FEATURE_JIT_SIMD>
 	objectMemory wordSize = 4 ifTrue: [ ^ EncounteredUnknownBytecode ].
 	
 	array2Reg := self allocateVectorRegForStackEntryAt: 0 notConflictingWith: 0.
@@ -1358,6 +1362,7 @@ StackToRegisterMappingCogit >> genAddFloat32Vector [
 StackToRegisterMappingCogit >> genAddFloat64Vector [ 
 	| array1Reg array2Reg sumReg |
 	
+	<option: #FEATURE_JIT_SIMD>
 	objectMemory wordSize = 4 ifTrue: [ ^ EncounteredUnknownBytecode ].	
 	
 	array2Reg := self allocateVectorRegForStackEntryAt: 0 notConflictingWith: 0.
@@ -1707,19 +1712,19 @@ StackToRegisterMappingCogit >> genIdenticalNoBranchArgIsConstant: argIsConstant 
 	<var: #label type: #'AbstractInstruction *'>
 	<var: #jumpEqual type: #'AbstractInstruction *'>
 	<var: #jumpNotEqual type: #'AbstractInstruction *'>
-	| label jumpEqual jumpNotEqual resultReg receiverConstant argumentConstant |
+	| label jumpEqual jumpNotEqual resultReg receiverStackSlot argumentStackSlot |
 	
-	receiverConstant := (self ssValue: 1) constant.
-	argumentConstant := self ssTop constant.
+	receiverStackSlot := (self ssValue: 1).
+	argumentStackSlot := self ssTop.
 	self ssPop: 2.
 
 	label := self Label.
 	self assert: (argReg ~= NoReg or: [ rcvrRegOrNone ~= NoReg ]).
 	argIsConstant
-		ifTrue: [ self genCmpConstant: argumentConstant R: rcvrRegOrNone ]
+		ifTrue: [ self genCmpConstant: argumentStackSlot constant R: rcvrRegOrNone ]
 		ifFalse: [
 			rcvrIsConstant
-				ifTrue: [ self genCmpConstant: receiverConstant R: argReg ]
+				ifTrue: [ self genCmpConstant: receiverStackSlot constant R: argReg ]
 				ifFalse: [ self CmpR: argReg R: rcvrRegOrNone ] ].
 
 	resultReg := rcvrRegOrNone = NoReg
@@ -1876,52 +1881,25 @@ StackToRegisterMappingCogit >> genLoadTemp: objectIndex in: destReg [
 { #category : 'mapped inline primitive generators' }
 StackToRegisterMappingCogit >> genMappedInlinePrimitive: primIndex [
 
-	"SistaV1:	236		11101100	iiiiiiii		callMappedInlinedPrimitive"
-
-	"Number of arguments:
-	 0-49 nullary
-	 50-99 unary
-	 100-149  binary
-	 150-199 trinary
-	 200-255 variable"
-
-	"Specification:
-	50	EnsureEnoughWords
-	literal which is a Smi => ret value is receiver
-	150	immCheckPointerAt:put:
-	pointer object (Fixed sized or not) and not a context, Smi, Anything => arg2 (1-based, optimised if arg1 is a constant)
-	151	immCheckStoreCheckPointerAt:put:
-	pointer object (Fixed sized or not) and not a context, Smi, Anything => arg2 (1-based, optimised if arg1 is a constant)
-	152	immCheckMaybeContextPointerAt:put:
-	pointer object (Fixed sized or not), Smi, Anything => arg2 (1-based, optimised if arg1 is a constant)
-	153	immCheckMaybeContextStoreCheckPointerAt:put:
-	pointer object (Fixed sized or not), Smi, Anything => arg2 (1-based, optimised if arg1 is a constant)
-	154	immCheckByteAt:put:
-	byte object, Smi, 8 bits unsigned Smi => arg2 (1-based, optimised if arg1 is a constant)
-	155	immCheckShortAt:put:
-	short object, Smi, 16 bits unsigned Smi => arg2 (1-based, optimised if arg1 is a constant)
-	156	immCheckWordAt:put:
-	word object, Smi, 32 bits unsigned Smi => arg2 (1-based, optimised if arg1 is a constant)
-	157	immCheckDoubleWordAt:put:
-	double word object, Smi, 64 bits unsigned Smi or LargePositiveInteger => arg2 (1-based, optimised if arg1 is a constant)
-	250	directCall
-	method to call on top of stack =>  (variable number of parameters)"
-
-	| result |
-	result := primIndex
-		          caseOf: { 
-				          ([ 0 ] -> [ self genAddFloat64Vector ]).
-				          ([ 1 ] -> [ self genPushFloat64ArrayToRegister ]).
-				          ([ 2 ] -> [ self genStoreFloat64RegisterIntoArray ]).
-				          ([ 3 ] -> [ self genAddFloat32Vector ]).
-				          ([ 4 ] -> [ self genPushFloat32ArrayToRegister ]).
-				          ([ 5 ] -> [ self genStoreFloat32RegisterIntoArray ]).
-				          ([ 6 ] -> [ self genSubFloat64Vector ]) }
-		          otherwise: [ EncounteredUnknownBytecode ].
-	"These primitives may end up calling a message send if preconditions are not met. Thus, the
+	self
+		cppIf: FEATURE_JIT_SIMD
+		ifTrue: [
+			| result |
+			result := primIndex
+				          caseOf: {
+						          ([ 0 ] -> [ self genAddFloat64Vector ]).
+						          ([ 1 ] -> [ self genPushFloat64ArrayToRegister ]).
+						          ([ 2 ] -> [ self genStoreFloat64RegisterIntoArray ]).
+						          ([ 3 ] -> [ self genAddFloat32Vector ]).
+						          ([ 4 ] -> [ self genPushFloat32ArrayToRegister ]).
+						          ([ 5 ] -> [ self genStoreFloat32RegisterIntoArray ]).
+						          ([ 6 ] -> [ self genSubFloat64Vector ]) }
+				          otherwise: [ EncounteredUnknownBytecode ].
+			"These primitives may end up calling a message send if preconditions are not met. Thus, the
 	bytecode needs to be annotated with `isMapped`, and each primitive must be annotated"
-	self annotateBytecode: self Label.
-	^ result
+			self annotateBytecode: self Label.
+			^ result ]
+		ifFalse: [ self error: 'VM built without SIMD support' ]
 ]
 
 { #category : 'bytecode generator support' }
@@ -2102,6 +2080,7 @@ StackToRegisterMappingCogit >> genPushFloat32ArrayToRegister [
 
 	| arrayReg indexReg vectorReg |
 	
+	<option: #FEATURE_JIT_SIMD>
 	objectMemory wordSize = 4 ifTrue: [ ^ EncounteredUnknownBytecode ].
 
 	arrayReg := self allocateRegForStackEntryAt: 0 notConflictingWith: 0.
@@ -2132,6 +2111,7 @@ StackToRegisterMappingCogit >> genPushFloat64ArrayToRegister [
 
 	| arrayReg indexReg vectorReg |
 	
+	<option: #FEATURE_JIT_SIMD>
 	objectMemory wordSize = 4 ifTrue: [ ^ EncounteredUnknownBytecode ].
 
 	arrayReg := self allocateRegForStackEntryAt: 0 notConflictingWith: 0.
@@ -2727,6 +2707,7 @@ StackToRegisterMappingCogit >> genStaticallyResolvedSpecialSelectorComparison [
 StackToRegisterMappingCogit >> genStoreFloat32RegisterIntoArray [
 	| arrayReg indexReg vectorReg |
 	
+	<option: #FEATURE_JIT_SIMD>
 	objectMemory wordSize = 4 ifTrue: [ ^ EncounteredUnknownBytecode ].
 	
 	arrayReg := self allocateRegForStackEntryAt: 0 notConflictingWith: 0.
@@ -2756,6 +2737,7 @@ StackToRegisterMappingCogit >> genStoreFloat32RegisterIntoArray [
 StackToRegisterMappingCogit >> genStoreFloat64RegisterIntoArray [
 	| arrayReg indexReg vectorReg |
 	
+	<option: #FEATURE_JIT_SIMD>
 	objectMemory wordSize = 4 ifTrue: [ ^ EncounteredUnknownBytecode ].
 	
 	arrayReg := self allocateRegForStackEntryAt: 0 notConflictingWith: 0.
@@ -2945,6 +2927,7 @@ StackToRegisterMappingCogit >> genStorePop: popBoolean TemporaryVariable: tempIn
 StackToRegisterMappingCogit >> genSubFloat64Vector [
 	| array1Reg array2Reg subReg |
 	
+	<option: #FEATURE_JIT_SIMD>
 	objectMemory wordSize = 4 ifTrue: [ ^ EncounteredUnknownBytecode ].
 	
 	array1Reg := self allocateVectorRegForStackEntryAt: 0 notConflictingWith: 0.
@@ -3060,8 +3043,8 @@ StackToRegisterMappingCogit >> generateInstructionsAt: eventualAbsoluteAddress [
 	<var: #fixup type: #'BytecodeFixup *'>
 	absoluteAddress := eventualAbsoluteAddress.
 	pcDependentIndex := 0.
-	0 to: opcodeIndex - 1 do:
-		[:i|
+
+	0 to: opcodeIndex - 1 do: [:i|
 		abstractInstruction := self abstractInstructionAt: i.
 		abstractInstruction isPCDependent
 			ifTrue:
@@ -3083,8 +3066,7 @@ StackToRegisterMappingCogit >> generateInstructionsAt: eventualAbsoluteAddress [
 				 absoluteAddress := absoluteAddress + abstractInstruction machineCodeSize]
 			ifFalse:
 				[absoluteAddress := abstractInstruction concretizeAt: absoluteAddress]].
-	0 to: pcDependentIndex - 1 do:
-		[:j|
+	0 to: pcDependentIndex - 1 do: [:j|
 		fixup := self fixupAtIndex: j.
 		abstractInstruction := self abstractInstructionAt: fixup instructionIndex.
 		abstractInstruction concretizeAt: abstractInstruction address].
