@@ -3855,7 +3855,6 @@ Cogit >> ceSICMiss: receiver icTable: icTable [
 	<api>
 	<flag: #workingSet>
 	<story: #pic>
-	<var: #megamorphicStub type: #'CogMethod *'>
 	| missedTargetReturnAddress missedTargetCogMethod selector numArgs sendHandler cacheTag0 newTargetMethodOrNil errorSelectorOrNil cacheTag1 cacheValue1 |
 	self assertValidICTable: icTable duringGC: false.
 	self assert: (objectMemory isNotForwarded: icTable).
