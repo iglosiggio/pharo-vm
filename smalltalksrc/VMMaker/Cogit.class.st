@@ -4014,6 +4014,10 @@ Cogit >> ceSICMiss: receiver [
 							to: callerReturnAddress asUnsignedInteger ] ] ].
 
 	linkingSucceeded ifTrue: [ "Jump back into the pic at its entry in case this is an MNU (newTargetMethodOrNil is nil)"
+
+		self cCode: [
+			self notifyCodeChanges: methodZoneBase _: methodZone limitZony ].
+
 		coInterpreter
 			executeCogPIC: inlineCache
 			fromLinkedSendWithReceiver: receiver
@@ -4719,6 +4723,9 @@ Cogit >> cogMNUPICSelector: selector receiver: rcvr methodOperand: methodOperand
 				flushICacheFrom: pic asUnsignedInteger
 				to: pic asUnsignedInteger + closedPICSize ].
 
+	self cCode: [
+		self notifyCodeChanges: methodZoneBase _: methodZone limitZony ].
+
 	^ pic
 ]
 
@@ -5025,7 +5032,10 @@ Cogit >> compactCogCompiledCode [
 	 flushingCacheWith: [
 		self
 			flushICacheFrom: methodZoneBase asUnsignedInteger
-			to: methodZone youngReferrers asUnsignedInteger]
+			to: methodZone youngReferrers asUnsignedInteger].
+
+	self cCode: [
+		self notifyCodeChanges: methodZoneBase _: methodZone limitZony ].
 ]
 
 { #category : 'compaction' }
@@ -6401,7 +6411,11 @@ Cogit >> followForwardedMethods [
 		freedPIC ifTrue: [ self unlinkSendsToFree ] ]
 	flushingCacheWith: [  	
 		codeModified ifTrue: "After possibly updating inline caches we need to flush the icache."
-			[self flushICacheFrom: methodZoneBase asUnsignedInteger to: methodZone limitZony asUnsignedInteger]]
+			[self flushICacheFrom: methodZoneBase asUnsignedInteger to: methodZone limitZony asUnsignedInteger]].
+
+	freedPIC ifTrue: [
+		self cCode: [
+			self notifyCodeChanges: methodZoneBase _: methodZone limitZony ] ]
 ]
 
 { #category : 'garbage collection' }
@@ -6506,7 +6520,10 @@ Cogit >> freeUnmarkedMachineCode [
 			[self unlinkSendsToFree]]
 	flushingCacheWith: [  	
 		codeModified ifTrue: "After possibly updating inline caches we need to flush the icache."
-			[self flushICacheFrom: methodZoneBase asUnsignedInteger to: methodZone limitZony asUnsignedInteger]]
+			[self flushICacheFrom: methodZoneBase asUnsignedInteger to: methodZone limitZony asUnsignedInteger]].
+
+	self cCode: [
+		self notifyCodeChanges: methodZoneBase _: methodZone limitZony ]
 ]
 
 { #category : 'compile abstract instructions' }
@@ -7531,6 +7548,9 @@ Cogit >> generateCogFullBlock [
 				[self perform: postCompileHook with: method.
 				 postCompileHook := nil]] 
 		flushingCacheWith: [	self flushICacheFrom: method asUnsignedInteger to: method asUnsignedInteger + totalSize].
+
+	self cCode: [
+		self notifyCodeChanges: methodZoneBase _: methodZone limitZony ].
 			
 	^method
 ]
@@ -7577,6 +7597,9 @@ Cogit >> generateCogMethod: selector [
 				[self perform: postCompileHook with: method.
 				 postCompileHook := nil]]  
 		flushingCacheWith: [self flushICacheFrom: method asUnsignedInteger to: method asUnsignedInteger + totalSize].
+
+	self cCode: [
+		self notifyCodeChanges: methodZoneBase _: methodZone limitZony ].
 
 	^method
 ]
@@ -9174,7 +9197,11 @@ Cogit >> mapObjectReferencesInMachineCodeForBecome [
 			[self unlinkSendsToFree].
 	] flushingCacheWith: 	[ 		
 		codeModified ifTrue: "After updating oops in inline caches we need to flush the icache."
-			[self flushICacheFrom: codeBase asUnsignedInteger to: methodZone limitZony asUnsignedInteger] ]
+			[self flushICacheFrom: codeBase asUnsignedInteger to: methodZone limitZony asUnsignedInteger] ].
+
+	freedPIC ifTrue: [ 
+		self cCode: [
+			self notifyCodeChanges: methodZoneBase _: methodZone limitZony ] ]
 	
 ]
 
@@ -9457,8 +9484,10 @@ Cogit >> markAndTraceOrFreeMachineCodeForFullGC [
 
 	] flushingCacheWith: 	[ 		
 		codeModified ifTrue: "After updating oops in inline caches we need to flush the icache."
-			[self flushICacheFrom: codeBase asUnsignedInteger to: methodZone limitZony asUnsignedInteger] ]
-	
+			[self flushICacheFrom: codeBase asUnsignedInteger to: methodZone limitZony asUnsignedInteger] ].
+
+	self cCode: [
+			self notifyCodeChanges: methodZoneBase _: methodZone limitZony ]
 ]
 
 { #category : 'garbage collection' }
@@ -10114,7 +10143,11 @@ Cogit >> patchToMegamorphicICFor: selector numArgs: numArgs receiver: receiver [
 				enableCodeZoneWriteDuring: [oPIC := self cogOpenPICSelector: selector numArgs: numArgs]
 				flushingCacheWith: [ 
 					(oPIC asInteger between: MaxNegativeErrorCode and: -1) 
-						ifFalse: [ self flushICacheFrom: oPIC asUnsignedInteger to: oPIC asUnsignedInteger + openPICSize]]].
+						ifFalse: [ self flushICacheFrom: oPIC asUnsignedInteger to: oPIC asUnsignedInteger + openPICSize]].
+
+			0 <= oPIC asInteger ifTrue: [
+				self cCode: [
+					self notifyCodeChanges: methodZoneBase _: methodZone limitZony ] ] ].
 
 	(oPIC asInteger between: MaxNegativeErrorCode and: -1) ifTrue:[
 		"For some reason the PIC couldn't be generated, most likely a lack of code memory."
@@ -11017,7 +11050,10 @@ Cogit >> safeFreeMethod: cogMethod [
 	"Free the method as paremeter taking care of enabling/disabling the code zone.
 	To be used by the interpreter and by usages that are not already enabling code zone writing"
 	self enableCodeZoneWriteDuring: [
-		self freeMethod: cogMethod ]
+		self freeMethod: cogMethod ].
+
+	self cCode: [
+		self notifyCodeChanges: methodZoneBase _: methodZone limitZony ]
 ]
 
 { #category : 'compile abstract instructions' }
@@ -11665,9 +11701,10 @@ Cogit >> unknownBytecode [
 Cogit >> unlinkAllSends [
 	<api>
 	"Unlink all sends in cog methods."
-	| cogMethod |
+	| cogMethod freedSomething |
 	<var: #cogMethod type: #'CogMethod *'>
 	methodZoneBase ifNil: [^self].
+	freedSomething := false.
 
 	self enableCodeZoneWriteDuring: [  
 		cogMethod := self cCoerceSimple: methodZoneBase to: #'CogMethod *'.
@@ -11680,14 +11717,19 @@ Cogit >> unlinkAllSends [
 						 arg: 0]
 				ifFalse:
 					[cogMethod cmType ~= CMFree ifTrue:
-						[methodZone freeMethod: cogMethod]].
+						[methodZone freeMethod: cogMethod.
+						freedSomething := true]].
 			cogMethod := methodZone methodAfter: cogMethod]]
  	flushingCacheWith: [ 
 		"After updating inline caches we need to flush the icache."
 		(methodZoneBase asUnsignedInteger < methodZone limitZony asUnsignedInteger) ifTrue: [ 
 			1halt. "Why it is not working?"
 			 self flushICacheFrom: methodZoneBase asUnsignedInteger to: methodZone limitZony asUnsignedInteger]
-		 ]
+		 ].
+
+	freedSomething ifTrue: [
+		self cCode: [
+			self notifyCodeChanges: methodZoneBase _: methodZone limitZony ] ].
 ]
 
 { #category : 'in-line cacheing' }
@@ -11833,6 +11875,10 @@ self enableCodeZoneWriteDuring:  [
 	 flushingCacheWith: [ 
 		codeModified ifTrue: "After possibly updating inline caches we need to flush the icache."
 			[self flushICacheFrom: methodZoneBase asUnsignedInteger to: methodZone limitZony asUnsignedInteger] ].
+
+	freedPIC ifTrue: [
+		self cCode: [
+			self notifyCodeChanges: methodZoneBase _: methodZone limitZony ] ]
 ]
 
 { #category : 'jit - api' }
@@ -11888,7 +11934,10 @@ Cogit >> unlinkSendsOf: selector isMNUSelector: isMNUSelector [
 			cogMethod := methodZone methodAfter: cogMethod]]
 		flushingCacheWith: [ 
 			codeModified ifTrue: "After possibly updating inline caches we need to flush the icache."
-				[self flushICacheFrom: methodZoneBase asUnsignedInteger to: methodZone limitZony asUnsignedInteger]]
+				[self flushICacheFrom: methodZoneBase asUnsignedInteger to: methodZone limitZony asUnsignedInteger]].
+
+	self cCode: [
+		self notifyCodeChanges: methodZoneBase _: methodZone limitZony ]
 ]
 
 { #category : 'jit - api' }
@@ -11897,7 +11946,7 @@ Cogit >> unlinkSendsTo: targetMethodObject andFreeIf: freeIfTrue [
 	"Unlink all sends in cog methods to a particular target method.
 	 If targetMethodObject isn't actually a method (perhaps being
 	 used via invokeAsMethod) then there's nothing to do."
-	| cogMethod targetMethod freedPIC |
+	| cogMethod targetMethod freedPIC freedSomething |
 	<var: #cogMethod type: #'CogMethod *'>
 	<var: #targetMethod type: #'CogMethod *'>
 	((objectMemory isOopCompiledMethod: targetMethodObject)
@@ -11905,7 +11954,7 @@ Cogit >> unlinkSendsTo: targetMethodObject andFreeIf: freeIfTrue [
 		[^self].
 	targetMethod := coInterpreter cogMethodOf: targetMethodObject.
 	methodZoneBase ifNil: [^self].
-	codeModified := freedPIC := false.
+	codeModified := freedSomething := freedPIC := false.
 	cogMethod := self cCoerceSimple: methodZoneBase to: #'CogMethod *'.
 
 	self enableCodeZoneWriteDuring: [  
@@ -11919,14 +11968,19 @@ Cogit >> unlinkSendsTo: targetMethodObject andFreeIf: freeIfTrue [
 						[(cogMethod cmType = CMPolymorphicIC
 						  and: [self cPIC: cogMethod HasTarget: targetMethod]) ifTrue:
 							[methodZone freeMethod: cogMethod.
-							 freedPIC := true]].
+							 freedSomething := freedPIC := true]].
 				cogMethod := methodZone methodAfter: cogMethod].
-			freeIfTrue ifTrue: [self freeMethod: targetMethod].
+			freeIfTrue ifTrue: 
+				[self freeMethod: targetMethod.
+				freedSomething := true].
 			freedPIC
 				ifTrue: [self unlinkSendsToFree]]  
 		flushingCacheWith: [ (freedPIC not and: [ codeModified ]) 
-			ifTrue: [ self flushICacheFrom: methodZoneBase asUnsignedInteger to: methodZone limitZony asUnsignedInteger ] ] 
-		
+			ifTrue: [ self flushICacheFrom: methodZoneBase asUnsignedInteger to: methodZone limitZony asUnsignedInteger ] ].
+
+	freedSomething ifTrue: [
+		self cCode: [
+			self notifyCodeChanges: methodZoneBase _: methodZone limitZony ] ].
 ]
 
 { #category : 'garbage collection' }

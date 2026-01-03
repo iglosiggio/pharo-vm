@@ -72,3 +72,5 @@ EXPORT(void) openDebugWindow(void* hwnd);
 EXPORT(void) notifyDebugWindow();
 
 #endif
+
+EXPORT(void) notifyCodeChanges(void* code_start, void* code_end);

@@ -201,3 +201,75 @@ vm_printf(const char * format, ... ){
 
 	return returnValue;
 }
+
+// https://sourceware.org/gdb/current/onlinedocs/gdb.html/Declarations.html#Declarations
+typedef enum
+{
+  JIT_NOACTION = 0,
+  JIT_REGISTER_FN,
+  JIT_UNREGISTER_FN
+} jit_actions_t;
+
+struct jit_code_entry
+{
+  struct jit_code_entry *next_entry;
+  struct jit_code_entry *prev_entry;
+  const char *symfile_addr;
+  uint64_t symfile_size;
+};
+
+struct jit_descriptor
+{
+  uint32_t version;
+  /* This type should be jit_actions_t, but we use uint32_t
+     to be explicit about the bitwidth.  */
+  uint32_t action_flag;
+  struct jit_code_entry *relevant_entry;
+  struct jit_code_entry *first_entry;
+};
+
+/* GDB puts a breakpoint in this function.  */
+void __attribute__((noinline)) __jit_debug_register_code() { };
+
+struct pharo_jit_entry {
+  char magic[8];
+  uintptr_t code_zone_start;
+  uintptr_t code_zone_end;
+};
+
+struct pharo_jit_entry pharo_entry = {
+  .magic = "PHAROOOP",
+  .code_zone_start = 0,
+  .code_zone_end = 0,
+};
+
+struct jit_code_entry gdb_entry = {
+  .next_entry = NULL,
+  .prev_entry = NULL,
+  .symfile_addr = (void*)&pharo_entry,
+  .symfile_size = sizeof(pharo_entry),
+};
+
+/* Make sure to specify the version statically, because the
+   debugger may check the version before we can set it.  */
+struct jit_descriptor __jit_debug_descriptor = {
+  .version = 1,
+  .action_flag = JIT_NOACTION,
+  .relevant_entry = &gdb_entry,
+  .first_entry = &gdb_entry,
+};
+
+void notifyCodeChanges(void* code_zone_start, void* code_zone_end) {
+  // FIXME! Run some simple hash to rule out unneeded notifications!
+  //static int times = 0;
+  //printf("CODE_CHANGES! (%p, %p, %ld) %d\n", code_zone_start, code_zone_end, code_zone_end - code_zone_start, times++);
+
+  if (__jit_debug_descriptor.action_flag == JIT_REGISTER_FN) {
+    __jit_debug_descriptor.action_flag = JIT_UNREGISTER_FN;
+    __jit_debug_register_code();
+  }
+  __jit_debug_descriptor.action_flag = JIT_REGISTER_FN;
+  pharo_entry.code_zone_start = code_zone_start;
+  pharo_entry.code_zone_end = code_zone_end;
+  __jit_debug_register_code();
+}

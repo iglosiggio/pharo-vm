@@ -192,7 +192,10 @@ CogMethodZone >> clearCogCompiledCode [
 			[cogMethod cmType = CMMethod ifTrue:
 				[self freeMethod: cogMethod].
 			 cogMethod := self methodAfter: cogMethod].
-		self manageFrom: baseAddress to: limitAddress ]
+		self manageFrom: baseAddress to: limitAddress ].
+
+	self cCode: [
+		cogit notifyCodeChanges: baseAddress _: self limitZony ].
 ]
 
 { #category : 'compaction' }
