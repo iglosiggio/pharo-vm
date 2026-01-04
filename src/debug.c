@@ -235,6 +235,9 @@ struct pharo_jit_entry {
   char magic[8];
   uintptr_t code_zone_start;
   uintptr_t code_zone_end;
+  uintptr_t trampoline_return_to_interpreter;
+  uintptr_t trampoline_base_frame_return;
+  uintptr_t trampoline_cannot_return;
 };
 
 struct pharo_jit_entry pharo_entry = {
@@ -263,6 +266,9 @@ void notifyCodeChanges(void* code_zone_start, void* code_zone_end) {
   // FIXME! Run some simple hash to rule out unneeded notifications!
   //static int times = 0;
   //printf("CODE_CHANGES! (%p, %p, %ld) %d\n", code_zone_start, code_zone_end, code_zone_end - code_zone_start, times++);
+  extern uintptr_t ceReturnToInterpreterTrampoline;
+  extern uintptr_t ceBaseFrameReturnTrampoline;
+  extern uintptr_t ceCannotResumeTrampoline;
 
   if (__jit_debug_descriptor.action_flag == JIT_REGISTER_FN) {
     __jit_debug_descriptor.action_flag = JIT_UNREGISTER_FN;
@@ -271,5 +277,8 @@ void notifyCodeChanges(void* code_zone_start, void* code_zone_end) {
   __jit_debug_descriptor.action_flag = JIT_REGISTER_FN;
   pharo_entry.code_zone_start = code_zone_start;
   pharo_entry.code_zone_end = code_zone_end;
+  pharo_entry.trampoline_return_to_interpreter = ceReturnToInterpreterTrampoline;
+  pharo_entry.trampoline_base_frame_return = ceBaseFrameReturnTrampoline;
+  pharo_entry.trampoline_cannot_return = ceCannotResumeTrampoline;
   __jit_debug_register_code();
 }
